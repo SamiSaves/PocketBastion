@@ -1,0 +1,38 @@
+name: Destroy dev server
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+  # Automatic midnight teardown (UTC)
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  destroy:
+    name: Destroy droplet
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        working-directory: terraform/digitalocean
+        run: terraform init
+
+      - name: Terraform destroy
+        working-directory: terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_coreos_image_slug: ${{ vars.COREOS_IMAGE_SLUG }}
+          TF_VAR_ssh_key_name: ${{ vars.DO_SSH_KEY_NAME }}
+        # destroy-all EXCEPT the state volume (lifecycle.prevent_destroy = true)
+        run: terraform destroy -auto-approve \
+          -target=digitalocean_droplet.server \
+          -target=digitalocean_volume_attachment.state \
+          -target=digitalocean_firewall.server \
+          -target=digitalocean_vpc.main

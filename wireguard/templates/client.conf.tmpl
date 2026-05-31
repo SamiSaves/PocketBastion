@@ -1,0 +1,19 @@
+[Interface]
+# client.conf.tmpl — WireGuard client config template.
+# Variables filled in when distributing a peer config:
+#   {{ CLIENT_PRIVATE_KEY }}  — client private key (generated on client device)
+#   {{ CLIENT_ADDRESS }}      — client VPN IP (e.g. 10.8.0.2/32)
+#   {{ SERVER_PUBLIC_KEY }}   — server public key (from /mnt/state/wireguard/server.pub)
+#   {{ SERVER_ENDPOINT }}     — server public IP or hostname and port (e.g. 1.2.3.4:51820)
+#   {{ DNS }}                 — optional DNS server over VPN (e.g. 10.8.0.1)
+
+Address    = {{ CLIENT_ADDRESS }}
+PrivateKey = {{ CLIENT_PRIVATE_KEY }}
+DNS        = {{ DNS }}
+
+[Peer]
+PublicKey  = {{ SERVER_PUBLIC_KEY }}
+Endpoint   = {{ SERVER_ENDPOINT }}
+# Route only VPN subnet through the tunnel (split tunnel)
+AllowedIPs = 10.8.0.0/24
+PersistentKeepalive = 25

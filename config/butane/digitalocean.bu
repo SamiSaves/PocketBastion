@@ -1,0 +1,93 @@
+variant: fcos
+version: 1.5.0
+
+# digitalocean.bu — Butane config for DigitalOcean droplet.
+# Rendered to config/ignition/digitalocean.ign via:  make ignition-do
+#
+# SSH keys are injected by DigitalOcean at droplet creation time via their
+# metadata API; no key needs to be hardcoded here.
+# SSH access is intentionally omitted — use WireGuard for access.
+
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+        - sudo
+
+storage:
+  directories:
+    - path: /mnt/state
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/wireguard
+      mode: 0700
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/repos
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/opencode
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/cache
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/github
+      mode: 0700
+      user:
+        name: core
+      group:
+        name: core
+
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: game-dev-do
+
+    - path: /etc/ssh/sshd_config.d/99-hardening.conf
+      mode: 0600
+      contents:
+        inline: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          AuthenticationMethods publickey
+
+systemd:
+  units:
+    # State disk — DigitalOcean Volume attached as /dev/disk/by-label/state
+    - name: mnt-state.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Persistent state volume
+        Before=local-fs.target
+
+        [Mount]
+        What=/dev/disk/by-label/state
+        Where=/mnt/state
+        Type=ext4
+        Options=defaults,noatime
+
+        [Install]
+        WantedBy=local-fs.target
+
+    # Disable SSH on DigitalOcean — WireGuard is the only entry point
+    - name: sshd.service
+      enabled: false
+      mask: true

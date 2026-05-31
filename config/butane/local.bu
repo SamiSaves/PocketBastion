@@ -1,0 +1,87 @@
+variant: fcos
+version: 1.5.0
+
+# local.bu — Butane config for local KVM development VM.
+# Rendered to config/ignition/local.ign via:  make ignition-local
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        # Replace with your actual public key before running make ignition-local
+        - "ssh-ed25519 AAAA... your-key-comment"
+      groups:
+        - wheel
+        - sudo
+
+storage:
+  directories:
+    - path: /mnt/state
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/wireguard
+      mode: 0700
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/repos
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/opencode
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/cache
+      mode: 0750
+      user:
+        name: core
+      group:
+        name: core
+    - path: /mnt/state/github
+      mode: 0700
+      user:
+        name: core
+      group:
+        name: core
+
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: game-dev-local
+
+    - path: /etc/ssh/sshd_config.d/99-hardening.conf
+      mode: 0600
+      contents:
+        inline: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          AuthenticationMethods publickey
+
+systemd:
+  units:
+    # State disk — local VM uses a virtio secondary disk labelled "state"
+    - name: mnt-state.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Persistent state volume
+        Before=local-fs.target
+
+        [Mount]
+        What=/dev/disk/by-label/state
+        Where=/mnt/state
+        Type=ext4
+        Options=defaults,noatime
+
+        [Install]
+        WantedBy=local-fs.target

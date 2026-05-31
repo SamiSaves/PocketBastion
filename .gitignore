@@ -1,0 +1,36 @@
+# Generated Ignition configs (rendered from Butane at build time)
+config/ignition/*.ign
+
+# WireGuard private keys and actual peer configs (never commit)
+wireguard/keys/
+wireguard/peers.yaml
+
+# Terraform state and sensitive outputs
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+terraform/digitalocean/.terraform/
+terraform/digitalocean/.terraform.lock.hcl
+terraform/digitalocean/*.tfstate
+terraform/digitalocean/*.tfstate.backup
+terraform/digitalocean/*.tfvars
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Environment files with secrets
+.env
+.env.*
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
