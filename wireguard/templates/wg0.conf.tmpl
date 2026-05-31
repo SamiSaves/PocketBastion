@@ -1,0 +1,22 @@
+[Interface]
+# wg0.conf.tmpl — WireGuard server interface template.
+# Variables replaced at first-boot by a setup script:
+#   {{ WG_PRIVATE_KEY }}  — server private key (from /mnt/state/wireguard/server.key)
+#   {{ WG_ADDRESS }}      — server VPN IP (e.g. 10.8.0.1/24)
+#   {{ WG_PORT }}         — listen port (default 51820)
+
+Address    = {{ WG_ADDRESS }}
+ListenPort = {{ WG_PORT }}
+PrivateKey = {{ WG_PRIVATE_KEY }}
+
+# PostUp/PostDown manage firewalld rules so the VPN interface is in the
+# "trusted" zone and application services bind correctly.
+PostUp   = firewall-cmd --zone=trusted --add-interface=wg0
+PostDown = firewall-cmd --zone=trusted --remove-interface=wg0
+
+# ── Peers are appended below by the peer management script ──────────────────
+# Each peer looks like:
+#
+# [Peer]
+# PublicKey  = <client public key>
+# AllowedIPs = 10.8.0.X/32

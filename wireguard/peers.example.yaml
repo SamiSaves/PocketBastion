@@ -1,0 +1,12 @@
+# peers.example.yaml — example peer list.
+# Copy to /mnt/state/wireguard/peers.yaml and fill in real public keys.
+# This file is safe to commit; it contains no private keys.
+
+peers:
+  - name: laptop
+    public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="
+    allowed_ips: "10.8.0.2/32"
+
+  - name: ci-runner
+    public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="
+    allowed_ips: "10.8.0.3/32"

@@ -1,0 +1,28 @@
+[Unit]
+Description=OpenCode AI coding assistant
+After=network-online.target dev-network.service
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/opencode-ai/opencode:latest
+# Pin by digest in production: Image=ghcr.io/opencode-ai/opencode@sha256:...
+ContainerName=opencode
+Network=dev.network
+
+# Bind only to WireGuard interface — not to all interfaces
+PublishPort=10.8.0.1:3000:3000
+
+# Persist sessions and model cache across container restarts
+Volume=/mnt/state/opencode:/data:Z
+
+# Pass GitHub credentials from the state volume
+Secret=github-token,type=env,target=GITHUB_TOKEN
+
+Environment=OPENCODE_DATA_DIR=/data
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target default.target
