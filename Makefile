@@ -1,4 +1,6 @@
-.PHONY: help ignition-local ignition-do validate vm-create vm-destroy ssh ip console clean
+.PHONY: help ignition ignition-local ignition-do validate \
+        local-up local-down local-ip local-ssh local-console \
+        vm-create vm-destroy ssh ip console clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
 VM_NAME      := game-dev-coreos-local
@@ -9,19 +11,13 @@ help: ## Show this help
 
 # ── Ignition rendering ──────────────────────────────────────────────────────
 
-ignition-local: ## Render local Ignition config from Butane
-	@echo "Rendering config/ignition/local.ign..."
-	@podman run --rm -i $(BUTANE_IMAGE) \
-		--pretty --strict < config/butane/local.bu \
-		> config/ignition/local.ign
-	@echo "Done."
+ignition: ignition-local ## Render local Ignition config (alias for ignition-local)
+
+ignition-local: ## Render local Ignition config from Butane (injects SSH key)
+	@bash scripts/render-ignition.sh local
 
 ignition-do: ## Render DigitalOcean Ignition config from Butane
-	@echo "Rendering config/ignition/digitalocean.ign..."
-	@podman run --rm -i $(BUTANE_IMAGE) \
-		--pretty --strict < config/butane/digitalocean.bu \
-		> config/ignition/digitalocean.ign
-	@echo "Done."
+	@bash scripts/render-ignition.sh do
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
@@ -30,22 +26,27 @@ validate: ## Validate scripts and configs
 
 # ── Local VM lifecycle ───────────────────────────────────────────────────────
 
-vm-create: ignition-local ## Create local KVM VM
+local-up: ignition-local ## Render Ignition and create local KVM VM
 	@./scripts/local-create-vm.sh
 
-vm-destroy: ## Destroy local KVM VM
+local-down: ## Destroy local KVM VM (preserves state disk)
 	@./scripts/local-destroy-vm.sh
 
-# ── Access helpers ───────────────────────────────────────────────────────────
-
-ssh: ## SSH into local VM
-	@./scripts/local-ssh.sh
-
-ip: ## Print local VM IP address
+local-ip: ## Print local VM IP address
 	@./scripts/local-ip.sh
 
-console: ## Open serial console for local VM
+local-ssh: ## SSH into local VM
+	@./scripts/local-ssh.sh
+
+local-console: ## Open serial console for local VM
 	@./scripts/local-console.sh
+
+# Aliases for backwards compatibility
+vm-create: local-up ## Alias for local-up
+vm-destroy: local-down ## Alias for local-down
+ssh: local-ssh ## Alias for local-ssh
+ip: local-ip ## Alias for local-ip
+console: local-console ## Alias for local-console
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
