@@ -1,15 +1,20 @@
 variant: fcos
 version: 1.5.0
 
-# local.bu — Butane config for local KVM development VM.
-# Rendered to config/ignition/local.ign via:  make ignition-local
+# local.bu — Butane config for local KVM development VM (Phase 2: minimal boot).
+#
+# The SSH public key is injected at render time — never hardcoded here.
+# Render with:  make ignition   (calls scripts/render-ignition.sh)
+#
+# Key source priority:
+#   1. secrets/ssh_authorized_keys   (one public key per line)
+#   2. ~/.ssh/id_ed25519.pub         (fallback)
 
 passwd:
   users:
     - name: core
       ssh_authorized_keys:
-        # Replace with your actual public key before running make ignition-local
-        - "ssh-ed25519 AAAA... your-key-comment"
+        - "${SSH_AUTHORIZED_KEY}"
       groups:
         - wheel
         - sudo
@@ -17,41 +22,7 @@ passwd:
 storage:
   directories:
     - path: /mnt/state
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/wireguard
-      mode: 0700
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/repos
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/opencode
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/cache
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/github
-      mode: 0700
-      user:
-        name: core
-      group:
-        name: core
+      mode: 0755
 
   files:
     - path: /etc/hostname
@@ -59,29 +30,11 @@ storage:
       contents:
         inline: game-dev-local
 
-    - path: /etc/ssh/sshd_config.d/99-hardening.conf
-      mode: 0600
+    - path: /etc/motd
+      mode: 0644
       contents:
         inline: |
-          PasswordAuthentication no
-          PermitRootLogin no
-          AuthenticationMethods publickey
-
-systemd:
-  units:
-    # State disk — local VM uses a virtio secondary disk labelled "state"
-    - name: mnt-state.mount
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Persistent state volume
-        Before=local-fs.target
-
-        [Mount]
-        What=/dev/disk/by-label/state
-        Where=/mnt/state
-        Type=ext4
-        Options=defaults,noatime
-
-        [Install]
-        WantedBy=local-fs.target
+          ┌─────────────────────────────────────────────┐
+          │  game-dev-coreos  (local KVM)               │
+          │  /mnt/state is the only persistent data     │
+          └─────────────────────────────────────────────┘

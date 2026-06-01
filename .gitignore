@@ -17,6 +17,9 @@ terraform/digitalocean/*.tfstate
 terraform/digitalocean/*.tfstate.backup
 terraform/digitalocean/*.tfvars
 
+# Local secrets — SSH keys, WireGuard keys, deploy keys (never commit)
+secrets/
+
 # SSH keys
 *.pem
 *.key
