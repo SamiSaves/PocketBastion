@@ -32,6 +32,7 @@ storage:
 
     - path: /etc/motd
       mode: 0644
+      overwrite: true
       contents:
         inline: |
           ┌─────────────────────────────────────────────┐
