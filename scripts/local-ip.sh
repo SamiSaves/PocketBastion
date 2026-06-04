@@ -4,7 +4,7 @@ set -euo pipefail
 
 VM_NAME="game-dev-coreos-local"
 
-IP=$(virsh --connect qemu:///system domifaddr "$VM_NAME" \
+IP=$(virsh --connect qemu:///system domifaddr "$VM_NAME" --source lease \
   | awk '/ipv4/ {split($4, a, "/"); print a[1]}' \
   | head -n1)
 
