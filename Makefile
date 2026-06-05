@@ -1,5 +1,5 @@
 .PHONY: help ignition ignition-local ignition-do validate \
-        local-up local-down local-ip local-ssh local-console \
+        local-up local-down local-ip local-ssh local-console local-wipe-state \
         vm-create vm-destroy ssh ip console clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
@@ -31,6 +31,9 @@ local-up: ignition-local ## Render Ignition and create local KVM VM
 
 local-down: ## Destroy local KVM VM (preserves state disk)
 	@./scripts/local-destroy-vm.sh
+
+local-wipe-state: ## Permanently delete the local state disk (DATA LOSS — prompts for confirmation)
+	@./scripts/local-wipe-state.sh
 
 local-ip: ## Print local VM IP address
 	@./scripts/local-ip.sh
