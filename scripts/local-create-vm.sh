@@ -7,6 +7,9 @@
 # Base image must be placed at:
 #   /var/lib/libvirt/images/fedora-coreos-44.qcow2
 #
+# Override the base image path with:
+#   FCOS_IMAGE=/path/to/fedora-coreos.qcow2 make local-up
+#
 # Download from:
 #   https://fedoraproject.org/coreos/download?stream=stable&arch=x86_64
 #   Choose: Bare Metal & Virtualized → QEMU (qcow2.xz)
@@ -16,13 +19,21 @@ set -euo pipefail
 
 VM_NAME="game-dev-coreos-local"
 VOL_NAME="${VM_NAME}-os.qcow2"
+STATE_VOL_NAME="${VM_NAME}-state.qcow2"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IGNITION="${REPO_ROOT}/config/ignition/local.ign"
 IMGDIR="/var/lib/libvirt/images"
-BASE_IMAGE="${IMGDIR}/fedora-coreos-44.qcow2"
+# FCOS_IMAGE may be set to an absolute path or a path relative to the repo root.
+if [[ -n "${FCOS_IMAGE:-}" ]]; then
+  [[ "$FCOS_IMAGE" != /* ]] && FCOS_IMAGE="${REPO_ROOT}/${FCOS_IMAGE}"
+  BASE_IMAGE="$FCOS_IMAGE"
+else
+  BASE_IMAGE="${IMGDIR}/fedora-coreos-44.qcow2"
+fi
 IGNITION_COPY="${IMGDIR}/${VM_NAME}.ign"
 RAM_MB="${RAM_MB:-2048}"
 VCPUS="${VCPUS:-2}"
+STATE_DISK_GB="${STATE_DISK_GB:-10}"
 
 # ── Pre-flight checks ────────────────────────────────────────────────────────
 
@@ -55,6 +66,16 @@ if [[ -z "$POOL" ]]; then
   exit 1
 fi
 
+# ── Create or reuse state disk ────────────────────────────────────────────────
+
+if virsh --connect qemu:///system vol-info --pool "$POOL" "$STATE_VOL_NAME" &>/dev/null; then
+  echo "Reusing existing state disk: ${IMGDIR}/${STATE_VOL_NAME}"
+else
+  echo "Creating state disk (${STATE_DISK_GB}GB) ..."
+  virsh --connect qemu:///system vol-create-as \
+    "$POOL" "$STATE_VOL_NAME" "${STATE_DISK_GB}G" --format qcow2
+fi
+
 # ── Destroy existing VM if present ──────────────────────────────────────────
 
 if virsh --connect qemu:///system dominfo "$VM_NAME" &>/dev/null; then
@@ -63,9 +84,9 @@ if virsh --connect qemu:///system dominfo "$VM_NAME" &>/dev/null; then
   virsh --connect qemu:///system undefine "$VM_NAME" 2>/dev/null || true
 fi
 
-# ── Create overlay disk via libvirt (keeps pool registry in sync) ────────────
+# ── Create OS overlay disk via libvirt (keeps pool registry in sync) ─────────
 
-echo "Creating overlay disk ..."
+echo "Creating OS overlay disk ..."
 virsh --connect qemu:///system vol-delete --pool "$POOL" "$VOL_NAME" 2>/dev/null || true
 virsh --connect qemu:///system vol-create --pool "$POOL" /dev/stdin << VOLEOF
 <volume>
@@ -94,6 +115,7 @@ virt-install \
   --machine q35 \
   --import \
   --disk "vol=${POOL}/${VOL_NAME},format=qcow2,bus=virtio" \
+  --disk "vol=${POOL}/${STATE_VOL_NAME},format=qcow2,bus=virtio" \
   --network network=default \
   --qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=${IGNITION_COPY}" \
   --noautoconsole \

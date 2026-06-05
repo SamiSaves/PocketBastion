@@ -1,7 +1,7 @@
 variant: fcos
 version: 1.5.0
 
-# local.bu — Butane config for local KVM development VM (Phase 2: minimal boot).
+# local.bu — Butane config for local KVM development VM (Phase 3: state disk).
 #
 # The SSH public key is injected at render time — never hardcoded here.
 # Render with:  make ignition   (calls scripts/render-ignition.sh)
@@ -21,7 +21,10 @@ passwd:
 
 storage:
   directories:
-    - path: /mnt/state
+    # Mount point for the persistent state disk (second virtio disk: /dev/vdb).
+    # /mnt is a symlink to /var/mnt on CoreOS, so we use the canonical path.
+    # Subdirectories are created by state-dirs.service after the disk is mounted.
+    - path: /var/mnt/state
       mode: 0755
 
   files:
@@ -39,3 +42,73 @@ storage:
           │  game-dev-coreos  (local KVM)               │
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
+
+systemd:
+  units:
+    # format-state-disk.service
+    # Runs once on first boot; formats /dev/vdb as ext4 if it has no filesystem.
+    # On subsequent boots the blkid check finds the label and skips mkfs.
+    - name: format-state-disk.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Format /dev/vdb as ext4 state disk if unformatted
+        DefaultDependencies=no
+        After=systemd-udev-settle.service
+        Before=var-mnt-state.mount
+        ConditionPathExists=/dev/vdb
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/bin/bash -c 'blkid /dev/vdb || mkfs.ext4 -L state /dev/vdb'
+        ExecStartPost=/usr/sbin/udevadm settle
+
+        [Install]
+        WantedBy=local-fs.target
+
+    # var-mnt-state.mount
+    # Mounts /dev/vdb at /var/mnt/state (canonical path; /mnt -> /var/mnt on CoreOS).
+    # The unit name must exactly match the canonical mount path.
+    - name: var-mnt-state.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Mount persistent state disk at /var/mnt/state
+        After=format-state-disk.service
+        Requires=format-state-disk.service
+
+        [Mount]
+        What=/dev/vdb
+        Where=/var/mnt/state
+        Type=ext4
+        Options=defaults,noatime
+
+        [Install]
+        WantedBy=local-fs.target
+
+    # state-dirs.service
+    # Creates the expected directory layout inside /mnt/state on every boot.
+    # Idempotent: mkdir -p is safe to run repeatedly.
+    - name: state-dirs.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Create required directories on state disk
+        After=var-mnt-state.mount
+        Requires=var-mnt-state.mount
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/mkdir -p \
+          /mnt/state/repos \
+          /mnt/state/opencode \
+          /mnt/state/npm-cache \
+          /mnt/state/pnpm-store \
+          /mnt/state/wireguard \
+          /mnt/state/secrets
+        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/secrets
+
+        [Install]
+        WantedBy=multi-user.target
