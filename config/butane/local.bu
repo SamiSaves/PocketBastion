@@ -43,6 +43,38 @@ storage:
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
 
+    # Enable systemd linger for core user so the user session (and Quadlet
+    # containers) starts at boot without an interactive login.
+    # Presence of this file is equivalent to: loginctl enable-linger core
+    - path: /var/lib/systemd/linger/core
+      mode: 0644
+      contents:
+        inline: ""
+
+    # Rootless Quadlet container for the core user (UID 1000).
+    # Files in /etc/containers/systemd/users/1000/ are picked up by the
+    # core user's systemd instance, not the system instance — no root needed.
+    - path: /etc/containers/systemd/users/1000/hello.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=Hello Quadlet smoke test
+          After=network-online.target
+          Wants=network-online.target
+
+          [Container]
+          Image=docker.io/library/nginx:alpine
+          ContainerName=hello
+          PublishPort=127.0.0.1:8080:80
+
+          [Service]
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+
 systemd:
   units:
     # format-state-disk.service

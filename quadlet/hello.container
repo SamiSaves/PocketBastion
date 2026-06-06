@@ -1,0 +1,27 @@
+# hello.container — Quadlet smoke test (Phase 4).
+#
+# Runs rootless under the core user (UID 1000).
+# Linger must be enabled so the user systemd session starts at boot:
+#   /var/lib/systemd/linger/core  (created by Ignition)
+#
+# Test inside the VM (no sudo needed):
+#   systemctl --user status hello.service
+#   podman ps
+#   curl http://127.0.0.1:8080
+
+[Unit]
+Description=Hello Quadlet smoke test
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/library/nginx:alpine
+ContainerName=hello
+PublishPort=127.0.0.1:8080:80
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
