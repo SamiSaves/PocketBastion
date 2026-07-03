@@ -1,22 +1,27 @@
-[Interface]
-# wg0.conf.tmpl — WireGuard server interface template.
-# Variables replaced at first-boot by a setup script:
-#   {{ WG_PRIVATE_KEY }}  — server private key (from /mnt/state/wireguard/server.key)
-#   {{ WG_ADDRESS }}      — server VPN IP (e.g. 10.8.0.1/24)
-#   {{ WG_PORT }}         — listen port (default 51820)
+# wg0.conf.tmpl — WireGuard server config template (documentation reference).
+#
+# The actual wg0.conf is rendered at first boot by /usr/local/sbin/wg-setup.sh
+# using the server private key from /mnt/state/wireguard/server_private.key.
+# Peers are appended from /mnt/state/wireguard/peers.conf (managed by wg-add-peer.sh).
+#
+# VPN subnet: 10.44.0.0/24
+#   server:  10.44.0.1
+#   laptop:  10.44.0.2
+#   desktop: 10.44.0.3
+#   phone:   10.44.0.4
 
-Address    = {{ WG_ADDRESS }}
-ListenPort = {{ WG_PORT }}
+[Interface]
+Address    = 10.44.0.1/24
+ListenPort = 51820
 PrivateKey = {{ WG_PRIVATE_KEY }}
 
-# PostUp/PostDown manage firewalld rules so the VPN interface is in the
-# "trusted" zone and application services bind correctly.
-PostUp   = firewall-cmd --zone=trusted --add-interface=wg0
-PostDown = firewall-cmd --zone=trusted --remove-interface=wg0
+# PostUp/PostDown for firewalld are omitted — FCOS does not ship firewall-cmd.
+# Firewall rules will be managed via nftables in Phase 6.
 
-# ── Peers are appended below by the peer management script ──────────────────
-# Each peer looks like:
+# ── Peers appended from /mnt/state/wireguard/peers.conf at boot ─────────────
+# Each peer block looks like:
 #
 # [Peer]
+# # laptop
 # PublicKey  = <client public key>
-# AllowedIPs = 10.8.0.X/32
+# AllowedIPs = 10.44.0.2/32

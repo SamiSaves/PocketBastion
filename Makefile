@@ -1,5 +1,6 @@
 .PHONY: help ignition ignition-local ignition-do validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
+        wg-generate-keys wg-server-pubkey wg-add-peer wg-render-client \
         vm-create vm-destroy ssh ip console clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
@@ -56,3 +57,17 @@ console: local-console ## Alias for local-console
 clean: ## Remove generated Ignition files
 	@rm -f config/ignition/*.ign
 	@echo "Cleaned generated Ignition files."
+
+# ── WireGuard ────────────────────────────────────────────────────────────────
+
+wg-generate-keys: ## Generate WireGuard keypair for a peer  (PEER=laptop)
+	@scripts/wg-generate-keys.sh "$(PEER)"
+
+wg-server-pubkey: ## Fetch server WireGuard public key from VM → secrets/wireguard/server.public
+	@scripts/wg-server-pubkey.sh
+
+wg-add-peer: ## Add peer to VM WireGuard config  (PEER=laptop IP=10.44.0.2)
+	@scripts/wg-add-peer.sh
+
+wg-render-client: ## Render client WireGuard config  (PEER=laptop ENDPOINT=<vm-ip>)
+	@scripts/wg-render-client.sh
