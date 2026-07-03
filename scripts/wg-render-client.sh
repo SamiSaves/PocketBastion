@@ -67,7 +67,6 @@ cat > "$OUT" << EOF
 [Interface]
 Address    = ${VPN_IP}/24
 PrivateKey = ${CLIENT_PRIVATE_KEY}
-DNS        = 10.44.0.1
 
 [Peer]
 PublicKey           = ${SERVER_PUBLIC_KEY}
