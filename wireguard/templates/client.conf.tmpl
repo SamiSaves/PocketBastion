@@ -6,12 +6,12 @@
 #   {{ SERVER_PUBLIC_KEY }}   — from secrets/wireguard/server.public
 #   {{ SERVER_ENDPOINT }}     — <vm-ip>:51820 for local; DNS:51820 for DigitalOcean
 #
-# VPN subnet: 10.44.0.0/24 (split tunnel — only VPN traffic goes through)
+# DNS is intentionally omitted — no DNS server runs on the VM yet.
+# Add "DNS = 10.44.0.1" here once a resolver is set up in a later phase.
 
 [Interface]
 Address    = {{ CLIENT_ADDRESS }}
 PrivateKey = {{ CLIENT_PRIVATE_KEY }}
-DNS        = 10.44.0.1
 
 [Peer]
 PublicKey           = {{ SERVER_PUBLIC_KEY }}
