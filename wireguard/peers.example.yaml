@@ -1,12 +1,22 @@
-# peers.example.yaml — example peer list.
-# Copy to /mnt/state/wireguard/peers.yaml and fill in real public keys.
-# This file is safe to commit; it contains no private keys.
+# peers.example.yaml — documentation of stable peer VPN address assignments.
+# Real public keys live in secrets/wireguard/ (gitignored).
+# Manage peers with: make wg-add-peer PEER=<name> IP=<vpn-ip>
+#
+# VPN subnet: 10.44.0.0/24
 
 peers:
-  - name: laptop
-    public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="
-    allowed_ips: "10.8.0.2/32"
+  - name: server
+    vpn_ip: "10.44.0.1"
+    note: "VM — key generated at first boot, stored at /mnt/state/wireguard/server_public.key"
 
-  - name: ci-runner
+  - name: laptop
+    vpn_ip: "10.44.0.2"
     public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="
-    allowed_ips: "10.8.0.3/32"
+
+  - name: desktop
+    vpn_ip: "10.44.0.3"
+    public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="
+
+  - name: phone
+    vpn_ip: "10.44.0.4"
+    public_key: "REPLACE_WITH_REAL_PUBLIC_KEY=="

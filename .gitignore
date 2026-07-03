@@ -1,5 +1,6 @@
 # Generated Ignition configs (rendered from Butane at build time)
 config/ignition/*.ign
+images/
 
 # WireGuard private keys and actual peer configs (never commit)
 wireguard/keys/

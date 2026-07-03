@@ -1,7 +1,7 @@
 variant: fcos
 version: 1.5.0
 
-# local.bu — Butane config for local KVM development VM (Phase 3: state disk).
+# local.bu — Butane config for local KVM development VM (Phase 5: WireGuard).
 #
 # The SSH public key is injected at render time — never hardcoded here.
 # Render with:  make ignition   (calls scripts/render-ignition.sh)
@@ -75,6 +75,53 @@ storage:
           [Install]
           WantedBy=default.target
 
+    # wg-setup.sh — generates server WireGuard keypair (if missing) and renders
+    # /etc/wireguard/wg0.conf from the key + peers stored on the state disk.
+    # Called by wg-setup.service on every boot.
+    - path: /usr/local/sbin/wg-setup.sh
+      mode: 0750
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+
+          WG_STATE=/mnt/state/wireguard
+          WG_CONF=/etc/wireguard/wg0.conf
+
+          install -d -m 0700 "$WG_STATE"
+          install -d -m 0700 /etc/wireguard
+
+          # Generate server keypair once; persist to state disk so it survives
+          # VM recreation (the public key is needed to configure client peers).
+          if [[ ! -f "$WG_STATE/server_private.key" ]]; then
+            wg genkey > "$WG_STATE/server_private.key"
+            chmod 600 "$WG_STATE/server_private.key"
+            echo "Generated new WireGuard server private key."
+          fi
+
+          wg pubkey < "$WG_STATE/server_private.key" > "$WG_STATE/server_public.key"
+          chmod 644 "$WG_STATE/server_public.key"
+
+          SERVER_PRIVATE_KEY=$(cat "$WG_STATE/server_private.key")
+
+          # Render wg0.conf header
+          cat > "$WG_CONF" << EOF
+          [Interface]
+          Address    = 10.44.0.1/24
+          ListenPort = 51820
+          PrivateKey = ${SERVER_PRIVATE_KEY}
+          EOF
+
+          # Append peers from state disk (populated by wg-add-peer.sh on the host)
+          PEERS_FILE="$WG_STATE/peers.conf"
+          if [[ -s "$PEERS_FILE" ]]; then
+            printf '\n' >> "$WG_CONF"
+            cat "$PEERS_FILE" >> "$WG_CONF"
+          fi
+
+          chmod 600 "$WG_CONF"
+          echo "wg0.conf rendered ($(grep -c '^\[Peer\]' "$WG_CONF" || true) peer(s))."
+
 systemd:
   units:
     # format-state-disk.service
@@ -144,3 +191,34 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
+
+    # wg-setup.service
+    # Runs on every boot after the state disk is mounted.
+    # Generates the server WireGuard keypair (once) and renders wg0.conf.
+    - name: wg-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Generate WireGuard server keys and render wg0.conf
+        After=var-mnt-state.mount state-dirs.service network.target
+        Requires=var-mnt-state.mount state-dirs.service
+        Before=wg-quick@wg0.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/sbin/wg-setup.sh
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # wg-quick@wg0.service
+    # Brings up the WireGuard interface using wg0.conf rendered by wg-setup.service.
+    - name: wg-quick@wg0.service
+      enabled: true
+      dropins:
+        - name: after-wg-setup.conf
+          contents: |
+            [Unit]
+            After=wg-setup.service
+            Requires=wg-setup.service
