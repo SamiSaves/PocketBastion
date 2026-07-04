@@ -20,7 +20,7 @@ storage:
     - path: /var/mnt/state
       mode: 0755
   files:
-    # Harden SSH: key-only auth, no passwords, no root login (Phase 6).
+    # Harden SSH: key-only auth, no passwords, no root login.
     - path: /etc/ssh/sshd_config.d/99-hardening.conf
       mode: 0600
       contents:
@@ -35,7 +35,7 @@ storage:
       mode: 0644
       contents:
         inline: ""
-    # OpenCode headless server (Phase 8) — rootless under the core user.
+    # OpenCode headless server — rootless under the core user.
     # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1 so the
     # normal/libvirt network cannot reach it (the firewall also blocks non-wg0).
     - path: /etc/containers/systemd/users/1000/opencode.container
@@ -78,7 +78,7 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/wg-setup.sh
-    # firewall-setup.sh — renders and applies the nftables ruleset (Phase 6).
+    # firewall-setup.sh — renders and applies the nftables ruleset.
     # Default policy is DROP on input; only WireGuard UDP and traffic arriving
     # through the wg0 tunnel are accepted. SSH from the normal/libvirt network
     # is permitted only while the ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG toggle is true.

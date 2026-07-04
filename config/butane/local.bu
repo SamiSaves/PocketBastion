@@ -35,7 +35,7 @@ storage:
           │  opencode-dev-server  (local KVM)           │
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
-    # Firewall toggle (Phase 6) — baked default that lives on the disposable OS.
+    # Firewall toggle — baked default that lives on the disposable OS.
     # While true, SSH is reachable on the normal/libvirt network for debugging.
     # Once WireGuard access is proven, flip this off. The recommended way is to
     # create /mnt/state/firewall/firewall.env with ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
