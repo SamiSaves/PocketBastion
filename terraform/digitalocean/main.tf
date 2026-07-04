@@ -44,10 +44,7 @@ resource "digitalocean_droplet" "server" {
   ssh_keys  = [data.digitalocean_ssh_key.default.id]
   user_data = file("${path.module}/../../config/ignition/digitalocean.ign")
 
-  # Place on the same VPC as the volume
-  vpc_uuid = digitalocean_vpc.main.id
-
-  tags = ["game-dev", "coreos"]
+  tags = ["opencode-dev-server", "coreos"]
 }
 
 resource "digitalocean_volume_attachment" "state" {
@@ -56,11 +53,6 @@ resource "digitalocean_volume_attachment" "state" {
 }
 
 # ── Networking ────────────────────────────────────────────────────────────────
-
-resource "digitalocean_vpc" "main" {
-  name   = "${var.droplet_name}-vpc"
-  region = var.region
-}
 
 resource "digitalocean_firewall" "server" {
   name = "${var.droplet_name}-firewall"

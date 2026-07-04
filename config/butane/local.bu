@@ -31,7 +31,7 @@ storage:
     - path: /etc/hostname
       mode: 0644
       contents:
-        inline: game-dev-local
+        inline: opencode-dev-server-local
 
     - path: /etc/motd
       mode: 0644
@@ -39,7 +39,7 @@ storage:
       contents:
         inline: |
           ┌─────────────────────────────────────────────┐
-          │  game-dev-coreos  (local KVM)               │
+          │  opencode-dev-server  (local KVM)           │
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
 
@@ -57,7 +57,7 @@ storage:
     # Once WireGuard access is proven, flip this off. The recommended way is to
     # create /mnt/state/firewall/firewall.env with ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
     # so the change survives VM recreation (see firewall-setup.sh below).
-    - path: /etc/game-dev/firewall.env
+    - path: /etc/opencode-dev-server/firewall.env
       mode: 0644
       contents:
         inline: |
@@ -195,7 +195,7 @@ storage:
           WG_PORT=51820
 
           # Baked default (lives on the disposable OS disk).
-          [[ -f /etc/game-dev/firewall.env ]] && source /etc/game-dev/firewall.env
+          [[ -f /etc/opencode-dev-server/firewall.env ]] && source /etc/opencode-dev-server/firewall.env
 
           # Persistent override on the state disk — survives VM recreation.
           # Flip the toggle here once WireGuard access is proven:
@@ -204,7 +204,7 @@ storage:
           #   sudo systemctl restart firewall.service
           [[ -f /mnt/state/firewall/firewall.env ]] && source /mnt/state/firewall/firewall.env
 
-          NFT_CONF=/etc/nftables/game-dev.nft
+          NFT_CONF=/etc/nftables/opencode-dev-server.nft
           install -d -m 0755 /etc/nftables
 
           # Only emit the public SSH rule when the debug toggle is enabled.
@@ -218,7 +218,7 @@ storage:
           # Rendered by firewall-setup.sh — do not edit by hand.
           flush ruleset
 
-          table inet game_dev {
+          table inet opencode_dev {
             chain input {
               type filter hook input priority filter; policy drop;
 

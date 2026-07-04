@@ -17,7 +17,7 @@
 #   Then:  sudo mv fedora-coreos-*.qcow2 /var/lib/libvirt/images/fedora-coreos-44.qcow2
 set -euo pipefail
 
-VM_NAME="game-dev-coreos-local"
+VM_NAME="opencode-dev-server-local"
 VOL_NAME="${VM_NAME}-os.qcow2"
 STATE_VOL_NAME="${VM_NAME}-state.qcow2"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

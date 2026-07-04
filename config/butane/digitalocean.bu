@@ -58,7 +58,7 @@ storage:
     - path: /etc/hostname
       mode: 0644
       contents:
-        inline: game-dev-do
+        inline: opencode-dev-server-do
 
     - path: /etc/ssh/sshd_config.d/99-hardening.conf
       mode: 0600

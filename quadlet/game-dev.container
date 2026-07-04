@@ -1,3 +1,5 @@
+# game-dev.container — example workload (Vite + Phaser). Replace with your own
+# project; the server itself is "opencode-dev-server".
 [Unit]
 Description=Vite + Phaser game dev server
 After=network-online.target dev-network.service
@@ -10,7 +12,7 @@ ContainerName=game-dev
 Network=dev.network
 
 # Bind only to WireGuard interface
-PublishPort=10.8.0.1:5173:5173
+PublishPort=10.44.0.1:5173:5173
 
 # Mount repository from persistent state
 Volume=/mnt/state/repos:/repos:Z

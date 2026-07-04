@@ -1,18 +1,16 @@
-.PHONY: help ignition ignition-local ignition-do validate \
+.PHONY: help ignition-local ignition-do validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-generate-keys wg-server-pubkey wg-add-peer wg-render-client \
-        vm-create vm-destroy ssh ip console clean
+        clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
-VM_NAME      := game-dev-coreos-local
+VM_NAME      := opencode-dev-server-local
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # ── Ignition rendering ──────────────────────────────────────────────────────
-
-ignition: ignition-local ## Render local Ignition config (alias for ignition-local)
 
 ignition-local: ## Render local Ignition config from Butane (injects SSH key)
 	@bash scripts/render-ignition.sh local
@@ -44,13 +42,6 @@ local-ssh: ## SSH into local VM
 
 local-console: ## Open serial console for local VM
 	@./scripts/local-console.sh
-
-# Aliases for backwards compatibility
-vm-create: local-up ## Alias for local-up
-vm-destroy: local-down ## Alias for local-down
-ssh: local-ssh ## Alias for local-ssh
-ip: local-ip ## Alias for local-ip
-console: local-console ## Alias for local-console
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

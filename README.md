@@ -27,7 +27,6 @@ docs/
   operations.md    Day-to-day runbook
   security.md      Threat model and hardening decisions
   decisions.md     Architecture decision records (ADRs)
-github-actions/    CI/CD workflows for start/destroy
 quadlet/           Podman Quadlet unit files for containers
 scripts/           Helper scripts (check, create, destroy, SSH…)
 terraform/
@@ -51,26 +50,15 @@ make ignition-local
 make validate
 
 # 4. Create local VM
-make vm-create
+make local-up
 
 # 5. SSH in
-make ssh
+make local-ssh
 ```
 
 ## Phased rollout
 
-| Phase | Goal |
-|-------|------|
-| 0 | Repository bootstrap (this phase) |
-| 1 | Host prerequisites check |
-| 2 | Minimal CoreOS local boot |
-| 3 | WireGuard VPN |
-| 4 | OpenCode container |
-| 5 | Game dev server container |
-| 6 | GitHub credentials |
-| 7 | Persistent state volume |
-| 8 | DigitalOcean Terraform |
-| 9 | Scheduled teardown |
+The full phased plan lives in [plan.md](plan.md).
 
 ## Security notes
 
