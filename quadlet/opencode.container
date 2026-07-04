@@ -1,24 +1,38 @@
 [Unit]
-Description=OpenCode AI coding assistant
-After=network-online.target dev-network.service
+Description=OpenCode headless server (VPN-only)
+After=network-online.target dev-network.service wg-quick@wg0.service
 Wants=network-online.target
 
 [Container]
-Image=ghcr.io/opencode-ai/opencode:latest
-# Pin by digest in production: Image=ghcr.io/opencode-ai/opencode@sha256:...
+Image=ghcr.io/anomalyco/opencode:latest
+# Pin by digest in production: Image=ghcr.io/anomalyco/opencode@sha256:...
 ContainerName=opencode
 Network=dev.network
 
-# Bind only to WireGuard interface — not to all interfaces
-PublishPort=10.8.0.1:3000:3000
+# Bind ONLY to the WireGuard interface — never 0.0.0.0.
+# The container listens on 0.0.0.0 internally; Podman publishes it on the
+# WireGuard IP only, so it is unreachable from the normal/public network.
+PublishPort=10.44.0.1:4096:4096
 
-# Persist sessions and model cache across container restarts
+# Persist sessions, auth (auth.json), and config across restarts / VM rebuild.
 Volume=/mnt/state/opencode:/data:Z
+Environment=XDG_DATA_HOME=/data
+Environment=XDG_CONFIG_HOME=/data/config
 
-# Pass GitHub credentials from the state volume
-Secret=github-token,type=env,target=GITHUB_TOKEN
+# Mount repositories so OpenCode can work on them.
+Volume=/mnt/state/repos:/repos:Z
 
-Environment=OPENCODE_DATA_DIR=/data
+# Provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) and the server
+# password (OPENCODE_SERVER_PASSWORD) come from the state disk, never from git.
+# Quadlet's EnvironmentFile has no optional variant, so this file must exist —
+# it is pre-created (empty) on the state disk so the server starts before creds.
+EnvironmentFile=/mnt/state/secrets/opencode.env
+
+# Run the headless HTTP server (default port 4096).
+Exec=serve --hostname 0.0.0.0 --port 4096
+
+# GitHub credentials are wired in Phase 9:
+# Secret=github-token,type=env,target=GITHUB_TOKEN
 
 [Service]
 Restart=always

@@ -96,6 +96,42 @@ storage:
           [Install]
           WantedBy=default.target
 
+    # OpenCode headless server (Phase 8) — rootless under the core user.
+    # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1 so the
+    # normal/libvirt network cannot reach it (the firewall also blocks non-wg0).
+    - path: /etc/containers/systemd/users/1000/opencode.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=OpenCode headless server (VPN-only)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Container]
+          Image=ghcr.io/anomalyco/opencode:latest
+          ContainerName=opencode
+          # Bind ONLY to the WireGuard IP — never 0.0.0.0.
+          PublishPort=10.44.0.1:4096:4096
+          # Persist sessions, auth, and config across restarts / VM rebuild.
+          Volume=/mnt/state/opencode:/data:Z
+          Environment=XDG_DATA_HOME=/data
+          Environment=XDG_CONFIG_HOME=/data/config
+          # Mount repositories so OpenCode can work on them.
+          Volume=/mnt/state/repos:/repos:Z
+          # Provider API keys + OPENCODE_SERVER_PASSWORD come from the state disk,
+          # never from git. The file is pre-created (empty) by state-dirs.service
+          # so the server starts for the VPN-only smoke test before creds are set.
+          EnvironmentFile=/mnt/state/secrets/opencode.env
+          Exec=serve --hostname 0.0.0.0 --port 4096
+
+          [Service]
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+
     # wg-setup.sh — generates server WireGuard keypair (if missing) and renders
     # /etc/wireguard/wg0.conf from the key + peers stored on the state disk.
     # Called by wg-setup.service on every boot.
@@ -283,7 +319,24 @@ systemd:
           /mnt/state/wireguard \
           /mnt/state/secrets \
           /mnt/state/firewall
-        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/secrets
+        # System-owned dirs (used by root services: wg-setup, firewall).
+        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/firewall
+        # Rootless-container dirs must be owned by the core user (UID 1000),
+        # since the OpenCode/game containers run rootless as core and need to
+        # read/write their data, repos, caches, and secrets.
+        ExecStart=/usr/bin/chown 1000:1000 \
+          /mnt/state/repos \
+          /mnt/state/opencode \
+          /mnt/state/npm-cache \
+          /mnt/state/pnpm-store \
+          /mnt/state/secrets
+        ExecStart=/usr/bin/chmod 700 /mnt/state/secrets
+        # Pre-create the OpenCode env file (owned by core) so its container's
+        # --env-file always resolves (Quadlet EnvironmentFile has no optional
+        # variant). Empty is fine until provider credentials are added.
+        ExecStart=/usr/bin/touch /mnt/state/secrets/opencode.env
+        ExecStart=/usr/bin/chown 1000:1000 /mnt/state/secrets/opencode.env
+        ExecStart=/usr/bin/chmod 600 /mnt/state/secrets/opencode.env
 
         [Install]
         WantedBy=multi-user.target
