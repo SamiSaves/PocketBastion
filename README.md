@@ -41,7 +41,7 @@ Makefile           Developer shortcuts
 
 ```bash
 # 1. Check host prerequisites
-./scripts/check-prereqs.sh
+./scripts/local/prereqs.sh
 
 # 2. Render Ignition config
 make ignition-local

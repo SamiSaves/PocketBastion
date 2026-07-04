@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# local-ssh.sh — SSH into the local KVM dev VM.
+# ssh.sh — SSH into the local KVM dev VM.
 set -euo pipefail
 
 VM_NAME="opencode-dev-server-local"
 SSH_USER="${SSH_USER:-core}"
 
-IP=$(./scripts/local-ip.sh)
+IP=$(./scripts/local/ip.sh)
 
 if [[ -z "$IP" ]]; then
   echo "ERROR: could not determine VM IP. Is the VM running?" >&2

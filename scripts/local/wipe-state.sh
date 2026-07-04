@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# local-wipe-state.sh — permanently delete the local state disk.
+# wipe-state.sh — permanently delete the local state disk.
 #
 # WARNING: This destroys all data in /mnt/state (repos, opencode sessions,
 # caches, WireGuard keys). There is no recovery. Use only when you want a

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# local-console.sh — open the serial console of the local KVM dev VM.
+# console.sh — open the serial console of the local KVM dev VM.
 # Exit with Ctrl+]
 set -euo pipefail
 

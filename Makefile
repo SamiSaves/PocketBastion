@@ -26,22 +26,22 @@ validate: ## Validate scripts and configs
 # ── Local VM lifecycle ───────────────────────────────────────────────────────
 
 local-up: ignition-local ## Render Ignition and create local KVM VM
-	@./scripts/local-create-vm.sh
+	@./scripts/local/create-vm.sh
 
 local-down: ## Destroy local KVM VM (preserves state disk)
-	@./scripts/local-destroy-vm.sh
+	@./scripts/local/destroy-vm.sh
 
 local-wipe-state: ## Permanently delete the local state disk (DATA LOSS — prompts for confirmation)
-	@./scripts/local-wipe-state.sh
+	@./scripts/local/wipe-state.sh
 
 local-ip: ## Print local VM IP address
-	@./scripts/local-ip.sh
+	@./scripts/local/ip.sh
 
 local-ssh: ## SSH into local VM
-	@./scripts/local-ssh.sh
+	@./scripts/local/ssh.sh
 
 local-console: ## Open serial console for local VM
-	@./scripts/local-console.sh
+	@./scripts/local/console.sh
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# local-destroy-vm.sh — destroy the local KVM dev VM.
+# destroy-vm.sh — destroy the local KVM dev VM.
 #
 # The OS overlay disk and Ignition copy are deleted (they are recreated by
 # local-create-vm.sh each time). The state disk is intentionally preserved

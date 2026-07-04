@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# local-ip.sh — print the IP address of the local KVM dev VM.
+# ip.sh — print the IP address of the local KVM dev VM.
 set -euo pipefail
 
 VM_NAME="opencode-dev-server-local"
