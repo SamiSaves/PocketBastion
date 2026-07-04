@@ -9,7 +9,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SECRETS_DIR="${REPO_ROOT}/secrets/wireguard"
-VM_IP="$("${REPO_ROOT}/scripts/local-ip.sh")"
+VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
 
 if [[ -z "$VM_IP" ]]; then
   echo "ERROR: Could not determine VM IP. Is the VM running?" >&2

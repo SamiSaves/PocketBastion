@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# local-setup.sh — one-time host setup for local KVM development.
+# setup.sh — one-time host setup for local KVM development.
 #
 # Run this once after installing packages and before using make local-up.
 # Safe to run multiple times (idempotent).

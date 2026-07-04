@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-prereqs.sh — verify host tools and group membership for local KVM dev.
+# prereqs.sh — verify host tools and group membership for local KVM dev.
 # This script ONLY checks; it does not install anything.
 set -euo pipefail
 

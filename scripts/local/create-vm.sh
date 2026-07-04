@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# local-create-vm.sh — create (or replace) the local KVM dev VM.
+# create-vm.sh — create (or replace) the local KVM dev VM.
 #
 # Prerequisites (one-time host setup):
-#   scripts/local-setup.sh       — run once after installing packages
+#   scripts/local/setup.sh       — run once after installing packages
 #
 # Base image must be placed at:
 #   /var/lib/libvirt/images/fedora-coreos-44.qcow2
@@ -20,7 +20,7 @@ set -euo pipefail
 VM_NAME="opencode-dev-server-local"
 VOL_NAME="${VM_NAME}-os.qcow2"
 STATE_VOL_NAME="${VM_NAME}-state.qcow2"
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 IGNITION="${REPO_ROOT}/config/ignition/local.ign"
 IMGDIR="/var/lib/libvirt/images"
 # FCOS_IMAGE may be set to an absolute path or a path relative to the repo root.
@@ -62,7 +62,7 @@ POOL=$(virsh --connect qemu:///system pool-list --all --name \
 
 if [[ -z "$POOL" ]]; then
   echo "ERROR: No libvirt storage pool found for $IMGDIR" >&2
-  echo "Run: scripts/local-setup.sh" >&2
+  echo "Run: scripts/local/setup.sh" >&2
   exit 1
 fi
 

@@ -36,7 +36,7 @@ if [[ ! -f "$PUBLIC_KEY_FILE" ]]; then
 fi
 
 PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
-VM_IP="$("${REPO_ROOT}/scripts/local-ip.sh")"
+VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
 
 if [[ -z "$VM_IP" ]]; then
   echo "ERROR: Could not determine VM IP. Is the VM running?" >&2

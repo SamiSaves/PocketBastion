@@ -13,7 +13,7 @@ make vm-create
 ```bash
 make ssh
 # or directly:
-./scripts/local-ssh.sh
+./scripts/local/ssh.sh
 ```
 
 ### Get IP
