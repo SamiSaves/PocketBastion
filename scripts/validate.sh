@@ -23,15 +23,13 @@ if check shellcheck; then
 fi
 
 echo ""
-echo "=== butane --strict (dry-run, requires podman) ==="
+echo "=== butane merge + render + per-env assertions ==="
 if check podman; then
-  for bu in "$ROOT/config/butane"/*.bu; do
-    echo "  checking $(basename "$bu")"
-    podman run --rm -i quay.io/coreos/butane:release \
-      --pretty --strict < "$bu" > /dev/null \
-      && echo "    OK" \
-      || { echo "    FAIL: $bu"; ERRORS=$((ERRORS + 1)); }
-  done
+  if bash "$ROOT/scripts/test-render.sh"; then
+    echo "    OK"
+  else
+    echo "    FAIL"; ERRORS=$((ERRORS + 1))
+  fi
 fi
 
 echo ""

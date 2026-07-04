@@ -1,93 +1,60 @@
 variant: fcos
 version: 1.5.0
-
-# digitalocean.bu — Butane config for DigitalOcean droplet.
-# Rendered to config/ignition/digitalocean.ign via:  make ignition-do
+# digitalocean.bu — DigitalOcean overlay.
 #
-# SSH keys are injected by DigitalOcean at droplet creation time via their
-# metadata API; no key needs to be hardcoded here.
-# SSH access is intentionally omitted — use WireGuard for access.
-
+# Merged on top of base.bu by render-ignition.sh:
+#   yq eval-all 'select(fi==0) *+ select(fi==1)' base.bu digitalocean.bu | butane
+#
+# Contains ONLY what differs from base for DigitalOcean:
+#   - DO hostname
+#   - public SSH permanently OFF (sshd masked AND the firewall toggle=false);
+#     access is WireGuard-only, so no SSH key is injected here
+#   - state disk mounted by label from the pre-formatted DO Volume
+#     (Terraform creates it with initial_filesystem_type=ext4, label=state),
+#     so there is no format-on-first-boot service
 passwd:
   users:
+    # The core user must exist (UID 1000) for the rootless Quadlet containers
+    # defined in base.bu. No SSH key: sshd is masked, access is via WireGuard.
     - name: core
       groups:
         - wheel
         - sudo
-
 storage:
-  directories:
-    - path: /mnt/state
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/wireguard
-      mode: 0700
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/repos
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/opencode
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/cache
-      mode: 0750
-      user:
-        name: core
-      group:
-        name: core
-    - path: /mnt/state/github
-      mode: 0700
-      user:
-        name: core
-      group:
-        name: core
-
   files:
     - path: /etc/hostname
       mode: 0644
       contents:
         inline: opencode-dev-server-do
-
-    - path: /etc/ssh/sshd_config.d/99-hardening.conf
-      mode: 0600
+    # Lock public SSH off (belt-and-suspenders with the masked sshd below).
+    # firewall-setup.sh defaults this toggle to true for local debugging, so DO
+    # must ship it false or the nftables ruleset would open tcp/22.
+    - path: /etc/opencode-dev-server/firewall.env
+      mode: 0644
       contents:
         inline: |
-          PasswordAuthentication no
-          PermitRootLogin no
-          AuthenticationMethods publickey
-
+          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
+          WG_PORT=51820
 systemd:
   units:
-    # State disk — DigitalOcean Volume attached as /dev/disk/by-label/state
-    - name: mnt-state.mount
+    # var-mnt-state.mount — DigitalOcean Volume attached and pre-formatted by
+    # Terraform, discovered by filesystem label. No format service needed.
+    - name: var-mnt-state.mount
       enabled: true
       contents: |
         [Unit]
-        Description=Persistent state volume
+        Description=Mount persistent state volume at /var/mnt/state
         Before=local-fs.target
 
         [Mount]
         What=/dev/disk/by-label/state
-        Where=/mnt/state
+        Where=/var/mnt/state
         Type=ext4
         Options=defaults,noatime
 
         [Install]
         WantedBy=local-fs.target
-
-    # Disable SSH on DigitalOcean — WireGuard is the only entry point
+    # Disable SSH on DigitalOcean — WireGuard is the only entry point.
     - name: sshd.service
       enabled: false
       mask: true

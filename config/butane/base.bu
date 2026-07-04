@@ -1,0 +1,285 @@
+variant: fcos
+version: 1.5.0
+# base.bu — shared Butane baseline for every environment.
+#
+# This file is NOT rendered on its own. render-ignition.sh deep-merges it with
+# an environment overlay (local.bu or digitalocean.bu) using `yq ... *+` before
+# piping the result to Butane:
+#
+#   yq eval-all 'select(fi==0) *+ select(fi==1)' base.bu <overlay>.bu | butane
+#
+# Invariant: every file path and every systemd unit name lives in exactly ONE
+# of {base, overlay}. `*+` appends arrays, so a path/name defined in both would
+# produce a duplicate and Butane --strict would reject it. Keep divergent
+# entries (hostname, state-disk mount, sshd policy, debug toggles) in overlays.
+storage:
+  directories:
+    # Mount point for the persistent state disk (second virtio disk: /dev/vdb).
+    # /mnt is a symlink to /var/mnt on CoreOS, so we use the canonical path.
+    # Subdirectories are created by state-dirs.service after the disk is mounted.
+    - path: /var/mnt/state
+      mode: 0755
+  files:
+    # Harden SSH: key-only auth, no passwords, no root login (Phase 6).
+    - path: /etc/ssh/sshd_config.d/99-hardening.conf
+      mode: 0600
+      contents:
+        inline: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          AuthenticationMethods publickey
+    # Enable systemd linger for core user so the user session (and Quadlet
+    # containers) starts at boot without an interactive login.
+    # Presence of this file is equivalent to: loginctl enable-linger core
+    - path: /var/lib/systemd/linger/core
+      mode: 0644
+      contents:
+        inline: ""
+    # OpenCode headless server (Phase 8) — rootless under the core user.
+    # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1 so the
+    # normal/libvirt network cannot reach it (the firewall also blocks non-wg0).
+    - path: /etc/containers/systemd/users/1000/opencode.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=OpenCode headless server (VPN-only)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Container]
+          Image=ghcr.io/anomalyco/opencode:latest
+          ContainerName=opencode
+          # Bind ONLY to the WireGuard IP — never 0.0.0.0.
+          PublishPort=10.44.0.1:4096:4096
+          # Persist sessions, auth, and config across restarts / VM rebuild.
+          Volume=/mnt/state/opencode:/data:Z
+          Environment=XDG_DATA_HOME=/data
+          Environment=XDG_CONFIG_HOME=/data/config
+          # Mount repositories so OpenCode can work on them.
+          Volume=/mnt/state/repos:/repos:Z
+          # Provider API keys + OPENCODE_SERVER_PASSWORD come from the state disk,
+          # never from git. The file is pre-created (empty) by state-dirs.service
+          # so the server starts for the VPN-only smoke test before creds are set.
+          EnvironmentFile=/mnt/state/secrets/opencode.env
+          Exec=serve --hostname 0.0.0.0 --port 4096
+
+          [Service]
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+    # wg-setup.sh — generates server WireGuard keypair (if missing) and renders
+    # /etc/wireguard/wg0.conf from the key + peers stored on the state disk.
+    # Called by wg-setup.service on every boot.
+    - path: /usr/local/sbin/wg-setup.sh
+      mode: 0750
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+
+          WG_STATE=/mnt/state/wireguard
+          WG_CONF=/etc/wireguard/wg0.conf
+
+          install -d -m 0700 "$WG_STATE"
+          install -d -m 0700 /etc/wireguard
+
+          # Generate server keypair once; persist to state disk so it survives
+          # VM recreation (the public key is needed to configure client peers).
+          if [[ ! -f "$WG_STATE/server_private.key" ]]; then
+            wg genkey > "$WG_STATE/server_private.key"
+            chmod 600 "$WG_STATE/server_private.key"
+            echo "Generated new WireGuard server private key."
+          fi
+
+          wg pubkey < "$WG_STATE/server_private.key" > "$WG_STATE/server_public.key"
+          chmod 644 "$WG_STATE/server_public.key"
+
+          SERVER_PRIVATE_KEY=$(cat "$WG_STATE/server_private.key")
+
+          # Render wg0.conf header
+          cat > "$WG_CONF" << EOF
+          [Interface]
+          Address    = 10.44.0.1/24
+          ListenPort = 51820
+          PrivateKey = ${SERVER_PRIVATE_KEY}
+          EOF
+
+          # Append peers from state disk (populated by wg-add-peer.sh on the host)
+          PEERS_FILE="$WG_STATE/peers.conf"
+          if [[ -s "$PEERS_FILE" ]]; then
+            printf '\n' >> "$WG_CONF"
+            cat "$PEERS_FILE" >> "$WG_CONF"
+          fi
+
+          chmod 600 "$WG_CONF"
+          echo "wg0.conf rendered ($(grep -c '^\[Peer\]' "$WG_CONF" || true) peer(s))."
+    # firewall-setup.sh — renders and applies the nftables ruleset (Phase 6).
+    # Default policy is DROP on input; only WireGuard UDP and traffic arriving
+    # through the wg0 tunnel are accepted. SSH from the normal/libvirt network
+    # is permitted only while the ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG toggle is true.
+    - path: /usr/local/sbin/firewall-setup.sh
+      mode: 0750
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+
+          # Safe default in case no env file is present.
+          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
+          WG_PORT=51820
+
+          # Baked default (lives on the disposable OS disk).
+          [[ -f /etc/opencode-dev-server/firewall.env ]] && source /etc/opencode-dev-server/firewall.env
+
+          # Persistent override on the state disk — survives VM recreation.
+          # Flip the toggle here once WireGuard access is proven:
+          #   echo 'ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false' \
+          #     | sudo tee /mnt/state/firewall/firewall.env
+          #   sudo systemctl restart firewall.service
+          [[ -f /mnt/state/firewall/firewall.env ]] && source /mnt/state/firewall/firewall.env
+
+          NFT_CONF=/etc/nftables/opencode-dev-server.nft
+          install -d -m 0755 /etc/nftables
+
+          # Only emit the public SSH rule when the debug toggle is enabled.
+          PUBLIC_SSH_RULE=""
+          if [[ "${ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG,,}" == "true" ]]; then
+            PUBLIC_SSH_RULE='tcp dport 22 accept comment "public SSH (local debug toggle)"'
+          fi
+
+          cat > "$NFT_CONF" << EOF
+          #!/usr/sbin/nft -f
+          # Rendered by firewall-setup.sh — do not edit by hand.
+          flush ruleset
+
+          table inet opencode_dev {
+            chain input {
+              type filter hook input priority filter; policy drop;
+
+              ct state established,related accept
+              ct state invalid drop
+              iif "lo" accept
+
+              # ICMP / ping
+              ip protocol icmp accept
+              ip6 nexthdr ipv6-icmp accept
+
+              # WireGuard handshake + tunnel — must reach the public interface
+              udp dport ${WG_PORT} accept
+
+              # Anything arriving through the VPN is trusted (SSH, OpenCode, Vite)
+              iifname "wg0" accept
+
+              # Optional: SSH from the normal/libvirt network (local debug only)
+              ${PUBLIC_SSH_RULE}
+            }
+
+            chain forward {
+              type filter hook forward priority filter; policy drop;
+            }
+
+            chain output {
+              type filter hook output priority filter; policy accept;
+            }
+          }
+          EOF
+
+          nft -f "$NFT_CONF"
+          echo "Firewall applied (public SSH debug = ${ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG})."
+systemd:
+  units:
+    # state-dirs.service
+    # Creates the expected directory layout inside /mnt/state on every boot.
+    # Idempotent: mkdir -p is safe to run repeatedly.
+    - name: state-dirs.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Create required directories on state disk
+        After=var-mnt-state.mount
+        Requires=var-mnt-state.mount
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/mkdir -p \
+          /mnt/state/repos \
+          /mnt/state/opencode \
+          /mnt/state/npm-cache \
+          /mnt/state/pnpm-store \
+          /mnt/state/wireguard \
+          /mnt/state/secrets \
+          /mnt/state/firewall
+        # System-owned dirs (used by root services: wg-setup, firewall).
+        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/firewall
+        # Rootless-container dirs must be owned by the core user (UID 1000),
+        # since the OpenCode/game containers run rootless as core and need to
+        # read/write their data, repos, caches, and secrets.
+        ExecStart=/usr/bin/chown 1000:1000 \
+          /mnt/state/repos \
+          /mnt/state/opencode \
+          /mnt/state/npm-cache \
+          /mnt/state/pnpm-store \
+          /mnt/state/secrets
+        ExecStart=/usr/bin/chmod 700 /mnt/state/secrets
+        # Pre-create the OpenCode env file (owned by core) so its container's
+        # --env-file always resolves (Quadlet EnvironmentFile has no optional
+        # variant). Empty is fine until provider credentials are added.
+        ExecStart=/usr/bin/touch /mnt/state/secrets/opencode.env
+        ExecStart=/usr/bin/chown 1000:1000 /mnt/state/secrets/opencode.env
+        ExecStart=/usr/bin/chmod 600 /mnt/state/secrets/opencode.env
+
+        [Install]
+        WantedBy=multi-user.target
+    # firewall.service
+    # Renders and applies the nftables firewall on every boot. Runs after the
+    # state disk is mounted so the persistent toggle override can be read, and
+    # before WireGuard comes up so the UDP port is already permitted.
+    - name: firewall.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Render and apply nftables firewall rules
+        After=var-mnt-state.mount state-dirs.service
+        Requires=state-dirs.service
+        Before=wg-quick@wg0.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/sbin/firewall-setup.sh
+
+        [Install]
+        WantedBy=multi-user.target
+    # wg-setup.service
+    # Runs on every boot after the state disk is mounted.
+    # Generates the server WireGuard keypair (once) and renders wg0.conf.
+    - name: wg-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Generate WireGuard server keys and render wg0.conf
+        After=var-mnt-state.mount state-dirs.service network.target
+        Requires=var-mnt-state.mount state-dirs.service
+        Before=wg-quick@wg0.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/sbin/wg-setup.sh
+
+        [Install]
+        WantedBy=multi-user.target
+    # wg-quick@wg0.service
+    # Brings up the WireGuard interface using wg0.conf rendered by wg-setup.service.
+    - name: wg-quick@wg0.service
+      enabled: true
+      dropins:
+        - name: after-wg-setup.conf
+          contents: |
+            [Unit]
+            After=wg-setup.service
+            Requires=wg-setup.service
