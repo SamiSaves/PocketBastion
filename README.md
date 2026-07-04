@@ -21,13 +21,13 @@ A reproducible, disposable Fedora CoreOS dev server that runs locally first
 ```
 config/
   butane/          Butane (YAML) source configs for Ignition
+    files/         Scripts + unit files inlined into Ignition at render time
   ignition/        Rendered Ignition JSON (git-ignored, generated)
 docs/
   architecture.md  System design and component overview
   operations.md    Day-to-day runbook
   security.md      Threat model and hardening decisions
   decisions.md     Architecture decision records (ADRs)
-quadlet/           Podman Quadlet unit files for containers
 scripts/           Helper scripts (check, create, destroy, SSH…)
 terraform/
   digitalocean/    Terraform for DigitalOcean droplet lifecycle
