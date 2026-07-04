@@ -46,9 +46,7 @@ storage:
         inline: |
           ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
           WG_PORT=51820
-    # Rootless Quadlet container for the core user (UID 1000).
-    # Files in /etc/containers/systemd/users/1000/ are picked up by the
-    # core user's systemd instance, not the system instance — no root needed.
+    # Rootless smoke-test container (picked up by the core user's systemd, not root).
     - path: /etc/containers/systemd/users/1000/hello.container
       mode: 0644
       contents:
@@ -71,9 +69,6 @@ storage:
           WantedBy=default.target
 systemd:
   units:
-    # format-state-disk.service
-    # Runs once on first boot; formats /dev/vdb as ext4 if it has no filesystem.
-    # On subsequent boots the blkid check finds the label and skips mkfs.
     - name: format-state-disk.service
       enabled: true
       contents: |
@@ -92,9 +87,7 @@ systemd:
 
         [Install]
         WantedBy=local-fs.target
-    # var-mnt-state.mount
-    # Mounts /dev/vdb at /var/mnt/state (canonical path; /mnt -> /var/mnt on CoreOS).
-    # The unit name must exactly match the canonical mount path.
+    # A .mount unit's name must match its Where= path (var-mnt-state = /var/mnt/state).
     - name: var-mnt-state.mount
       enabled: true
       contents: |

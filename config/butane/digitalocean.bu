@@ -37,8 +37,8 @@ storage:
           WG_PORT=51820
 systemd:
   units:
-    # var-mnt-state.mount — DigitalOcean Volume attached and pre-formatted by
-    # Terraform, discovered by filesystem label. No format service needed.
+    # var-mnt-state.mount: the DO Volume is pre-formatted by Terraform
+    # (initial_filesystem_type=ext4, label=state), so no format service is needed.
     - name: var-mnt-state.mount
       enabled: true
       contents: |
