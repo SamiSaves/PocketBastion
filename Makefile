@@ -1,6 +1,7 @@
 .PHONY: help ignition-local ignition-do validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-generate-keys wg-server-pubkey wg-add-peer wg-render-client \
+        github-install-deploy-key github-test-access \
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
@@ -62,3 +63,11 @@ wg-add-peer: ## Add peer to VM WireGuard config  (PEER=laptop IP=10.44.0.2)
 
 wg-render-client: ## Render client WireGuard config  (PEER=laptop ENDPOINT=<vm-ip>)
 	@scripts/wg-render-client.sh
+
+# ── GitHub access ────────────────────────────────────────────────────────────
+
+github-install-deploy-key: ## Generate a repo-scoped GitHub deploy key on the VM
+	@scripts/github-install-deploy-key.sh
+
+github-test-access: ## Test GitHub deploy-key auth from the VM (ssh -T git@github.com)
+	@scripts/github-test-access.sh

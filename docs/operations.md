@@ -55,6 +55,23 @@ make validate         # sanity check
 3. Reload WireGuard: `sudo systemctl restart wg-quick@wg0`.
 4. Configure the client with the server's public key and endpoint.
 
+## GitHub access
+
+1. Generate the deploy key on the VM and print its public half:
+   ```bash
+   make github-install-deploy-key
+   ```
+2. Add the printed public key to the repo: GitHub → repo → Settings → Deploy
+   keys → Add deploy key (tick "Allow write access").
+3. Verify authentication:
+   ```bash
+   make github-test-access
+   ```
+
+The private key stays on the VM's state disk (`/mnt/state/secrets/github/`) and
+survives rebuilds. Re-run `make github-install-deploy-key` after a rebuild to
+restore `~/.ssh/config` (it reuses the persisted key — no GitHub re-registration).
+
 ## DigitalOcean
 
 ### Create droplet

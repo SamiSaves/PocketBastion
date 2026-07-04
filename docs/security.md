@@ -32,7 +32,7 @@ each secret lives at runtime:
 |--------|---------------------|---------|
 | WireGuard server private key | `/mnt/state/wireguard/server.key` | On VM rebuild |
 | WireGuard client private key | Client device only | Manual |
-| GitHub deploy key (private) | `/mnt/state/github/deploy.key` | Manual |
+| GitHub deploy key (private) | `/mnt/state/secrets/github/deploy_key` | Manual |
 | GitHub deploy key (public) | Registered in GitHub repository settings | On key rotation |
 | DigitalOcean API token | Terraform environment variable / GitHub Actions secret | Manual |
 
