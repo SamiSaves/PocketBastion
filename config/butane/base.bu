@@ -14,13 +14,10 @@ version: 1.5.0
 # entries (hostname, state-disk mount, sshd policy, debug toggles) in overlays.
 storage:
   directories:
-    # Mount point for the persistent state disk (second virtio disk: /dev/vdb).
-    # /mnt is a symlink to /var/mnt on CoreOS, so we use the canonical path.
-    # Subdirectories are created by state-dirs.service after the disk is mounted.
+    # /mnt is a symlink to /var/mnt on CoreOS; use the canonical path.
     - path: /var/mnt/state
       mode: 0755
   files:
-    # Harden SSH: key-only auth, no passwords, no root login.
     - path: /etc/ssh/sshd_config.d/99-hardening.conf
       mode: 0600
       contents:
@@ -28,42 +25,28 @@ storage:
           PasswordAuthentication no
           PermitRootLogin no
           AuthenticationMethods publickey
-    # Enable systemd linger for core user so the user session (and Quadlet
-    # containers) starts at boot without an interactive login.
-    # Presence of this file is equivalent to: loginctl enable-linger core
+    # Equivalent to `loginctl enable-linger core`: starts the core user's
+    # systemd instance (and its rootless containers) at boot, no login needed.
     - path: /var/lib/systemd/linger/core
       mode: 0644
       contents:
         inline: ""
-    # OpenCode headless server — rootless under the core user.
-    # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1 so the
-    # normal/libvirt network cannot reach it (the firewall also blocks non-wg0).
-    # Unit lives under files/ so it is easy to edit; Butane inlines it at render.
+    # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1, so the
+    # normal/public network cannot reach it (the firewall also blocks non-wg0).
     - path: /etc/containers/systemd/users/1000/opencode.container
       mode: 0644
       contents:
         local: files/etc/containers/systemd/users/1000/opencode.container
-    # wg-setup.sh — generates server WireGuard keypair (if missing) and renders
-    # /etc/wireguard/wg0.conf from the key + peers stored on the state disk.
-    # Called by wg-setup.service on every boot. Source lives under files/ so it
-    # is shellcheck-linted; Butane inlines it via --files-dir at render time.
     - path: /usr/local/sbin/wg-setup.sh
       mode: 0750
       contents:
         local: files/usr/local/sbin/wg-setup.sh
-    # firewall-setup.sh — renders and applies the nftables ruleset.
-    # Default policy is DROP on input; only WireGuard UDP and traffic arriving
-    # through the wg0 tunnel are accepted. SSH from the normal/libvirt network
-    # is permitted only while the ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG toggle is true.
     - path: /usr/local/sbin/firewall-setup.sh
       mode: 0750
       contents:
         local: files/usr/local/sbin/firewall-setup.sh
 systemd:
   units:
-    # state-dirs.service
-    # Creates the expected directory layout inside /mnt/state on every boot.
-    # Idempotent: mkdir -p is safe to run repeatedly.
     - name: state-dirs.service
       enabled: true
       contents: |
@@ -104,10 +87,8 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
-    # firewall.service
-    # Renders and applies the nftables firewall on every boot. Runs after the
-    # state disk is mounted so the persistent toggle override can be read, and
-    # before WireGuard comes up so the UDP port is already permitted.
+    # Ordered after the state mount (to read the persistent toggle override) and
+    # before WireGuard (so the UDP port is already open when the tunnel starts).
     - name: firewall.service
       enabled: true
       contents: |
@@ -124,9 +105,6 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
-    # wg-setup.service
-    # Runs on every boot after the state disk is mounted.
-    # Generates the server WireGuard keypair (once) and renders wg0.conf.
     - name: wg-setup.service
       enabled: true
       contents: |
@@ -143,8 +121,6 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
-    # wg-quick@wg0.service
-    # Brings up the WireGuard interface using wg0.conf rendered by wg-setup.service.
     - name: wg-quick@wg0.service
       enabled: true
       dropins:
