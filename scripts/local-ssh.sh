@@ -2,7 +2,7 @@
 # local-ssh.sh — SSH into the local KVM dev VM.
 set -euo pipefail
 
-VM_NAME="game-dev-coreos-local"
+VM_NAME="opencode-dev-server-local"
 SSH_USER="${SSH_USER:-core}"
 
 IP=$(./scripts/local-ip.sh)

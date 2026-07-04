@@ -3,7 +3,7 @@
 # Exit with Ctrl+]
 set -euo pipefail
 
-VM_NAME="game-dev-coreos-local"
+VM_NAME="opencode-dev-server-local"
 
 echo "Attaching to serial console for '$VM_NAME'."
 echo "Exit with: Ctrl+]"

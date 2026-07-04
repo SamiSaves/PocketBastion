@@ -13,7 +13,7 @@ variable "region" {
 variable "droplet_name" {
   description = "Name for the droplet and related resources."
   type        = string
-  default     = "game-dev-server"
+  default     = "opencode-dev-server"
 }
 
 variable "droplet_size" {

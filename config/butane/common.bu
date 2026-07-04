@@ -57,7 +57,7 @@ storage:
     - path: /etc/hostname
       mode: 0644
       contents:
-        inline: game-dev-server
+        inline: opencode-dev-server
 
     # Harden SSH: key-only, no passwords, no root login
     - path: /etc/ssh/sshd_config.d/99-hardening.conf

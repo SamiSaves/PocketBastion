@@ -8,7 +8,7 @@
 # The VM must be destroyed first (make local-down).
 set -euo pipefail
 
-VM_NAME="game-dev-coreos-local"
+VM_NAME="opencode-dev-server-local"
 IMGDIR="/var/lib/libvirt/images"
 STATE_VOL="${VM_NAME}-state.qcow2"
 
