@@ -43,6 +43,27 @@ storage:
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
 
+    # Harden SSH: key-only auth, no passwords, no root login (Phase 6).
+    - path: /etc/ssh/sshd_config.d/99-hardening.conf
+      mode: 0600
+      contents:
+        inline: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          AuthenticationMethods publickey
+
+    # Firewall toggle (Phase 6) — baked default that lives on the disposable OS.
+    # While true, SSH is reachable on the normal/libvirt network for debugging.
+    # Once WireGuard access is proven, flip this off. The recommended way is to
+    # create /mnt/state/firewall/firewall.env with ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
+    # so the change survives VM recreation (see firewall-setup.sh below).
+    - path: /etc/game-dev/firewall.env
+      mode: 0644
+      contents:
+        inline: |
+          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
+          WG_PORT=51820
+
     # Enable systemd linger for core user so the user session (and Quadlet
     # containers) starts at boot without an interactive login.
     # Presence of this file is equivalent to: loginctl enable-linger core
@@ -122,6 +143,80 @@ storage:
           chmod 600 "$WG_CONF"
           echo "wg0.conf rendered ($(grep -c '^\[Peer\]' "$WG_CONF" || true) peer(s))."
 
+    # firewall-setup.sh — renders and applies the nftables ruleset (Phase 6).
+    # Default policy is DROP on input; only WireGuard UDP and traffic arriving
+    # through the wg0 tunnel are accepted. SSH from the normal/libvirt network
+    # is permitted only while the ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG toggle is true.
+    - path: /usr/local/sbin/firewall-setup.sh
+      mode: 0750
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+
+          # Safe default in case no env file is present.
+          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
+          WG_PORT=51820
+
+          # Baked default (lives on the disposable OS disk).
+          [[ -f /etc/game-dev/firewall.env ]] && source /etc/game-dev/firewall.env
+
+          # Persistent override on the state disk — survives VM recreation.
+          # Flip the toggle here once WireGuard access is proven:
+          #   echo 'ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false' \
+          #     | sudo tee /mnt/state/firewall/firewall.env
+          #   sudo systemctl restart firewall.service
+          [[ -f /mnt/state/firewall/firewall.env ]] && source /mnt/state/firewall/firewall.env
+
+          NFT_CONF=/etc/nftables/game-dev.nft
+          install -d -m 0755 /etc/nftables
+
+          # Only emit the public SSH rule when the debug toggle is enabled.
+          PUBLIC_SSH_RULE=""
+          if [[ "${ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG,,}" == "true" ]]; then
+            PUBLIC_SSH_RULE='tcp dport 22 accept comment "public SSH (local debug toggle)"'
+          fi
+
+          cat > "$NFT_CONF" << EOF
+          #!/usr/sbin/nft -f
+          # Rendered by firewall-setup.sh — do not edit by hand.
+          flush ruleset
+
+          table inet game_dev {
+            chain input {
+              type filter hook input priority filter; policy drop;
+
+              ct state established,related accept
+              ct state invalid drop
+              iif "lo" accept
+
+              # ICMP / ping
+              ip protocol icmp accept
+              ip6 nexthdr ipv6-icmp accept
+
+              # WireGuard handshake + tunnel — must reach the public interface
+              udp dport ${WG_PORT} accept
+
+              # Anything arriving through the VPN is trusted (SSH, OpenCode, Vite)
+              iifname "wg0" accept
+
+              # Optional: SSH from the normal/libvirt network (local debug only)
+              ${PUBLIC_SSH_RULE}
+            }
+
+            chain forward {
+              type filter hook forward priority filter; policy drop;
+            }
+
+            chain output {
+              type filter hook output priority filter; policy accept;
+            }
+          }
+          EOF
+
+          nft -f "$NFT_CONF"
+          echo "Firewall applied (public SSH debug = ${ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG})."
+
 systemd:
   units:
     # format-state-disk.service
@@ -186,8 +281,30 @@ systemd:
           /mnt/state/npm-cache \
           /mnt/state/pnpm-store \
           /mnt/state/wireguard \
-          /mnt/state/secrets
+          /mnt/state/secrets \
+          /mnt/state/firewall
         ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/secrets
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # firewall.service
+    # Renders and applies the nftables firewall on every boot. Runs after the
+    # state disk is mounted so the persistent toggle override can be read, and
+    # before WireGuard comes up so the UDP port is already permitted.
+    - name: firewall.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Render and apply nftables firewall rules
+        After=var-mnt-state.mount state-dirs.service
+        Requires=state-dirs.service
+        Before=wg-quick@wg0.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/sbin/firewall-setup.sh
 
         [Install]
         WantedBy=multi-user.target
