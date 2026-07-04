@@ -112,3 +112,57 @@ systemctl status opencode.service
 systemctl status game-dev.service
 journalctl -u opencode.service -f
 ```
+
+## Hardening check
+
+After the VM is up and WireGuard is proven, verify the security model at
+runtime:
+
+```bash
+make harden-check
+```
+
+It asserts: OpenCode/Vite are not on a public interface, SSH password + root
+login are disabled, WireGuard is listening, `/mnt/state` is a separate
+(persistent) mount, and no secrets are tracked by git. The "SSH over
+WireGuard" check is skipped unless the tunnel is up on the machine running it.
+
+## Emergency access
+
+Normal access is SSH over WireGuard only. If the tunnel breaks (bad key, wg0
+down, firewall lockout), recover **out-of-band** — do not open public SSH
+permanently.
+
+**1. Serial console (no network needed).**
+
+- Local KVM: `make local-console` (exit with `Ctrl+]`).
+- DigitalOcean: droplet → **Access** → **Launch Droplet Console**.
+
+Log in as `core` with your SSH key via the console, then inspect:
+
+```bash
+sudo systemctl status wg-quick@wg0 firewall.service
+sudo wg show
+sudo journalctl -u wg-setup.service -u firewall.service
+```
+
+**2. Temporarily re-open public SSH (local debug).** The firewall reads a
+persistent toggle from the state disk. From the console:
+
+```bash
+echo 'ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true' \
+  | sudo tee /mnt/state/firewall/firewall.env
+sudo systemctl restart firewall.service
+```
+
+Flip it back to `false` (and restart `firewall.service`) the moment WireGuard
+works again. Because the file lives on `/mnt/state`, the setting survives VM
+recreation — so do not leave it on.
+
+**3. Last resort — rebuild.** The OS disk is disposable. Destroy and recreate
+the VM; `/mnt/state` (keys, repos, sessions) is reattached untouched:
+
+```bash
+make local-down && make local-up   # local
+# DigitalOcean: re-run the start workflow / terraform apply (volume persists)
+```
