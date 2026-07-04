@@ -2,6 +2,7 @@
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-generate-keys wg-server-pubkey wg-add-peer wg-render-client \
         github-install-deploy-key github-test-access \
+        harden-check \
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
@@ -23,6 +24,9 @@ ignition-do: ## Render DigitalOcean Ignition config from Butane
 
 validate: ## Validate scripts and configs
 	@./scripts/validate.sh
+
+harden-check: ## Runtime hardening checks against the live VM (phase 10)
+	@./scripts/hardening-check.sh
 
 # ── Local VM lifecycle ───────────────────────────────────────────────────────
 
