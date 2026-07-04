@@ -18,8 +18,8 @@ echo "=== shellcheck ==="
 if check shellcheck; then
   while IFS= read -r -d '' script; do
     echo "  checking $script"
-    shellcheck "$script" || ERRORS=$((ERRORS + 1))
-  done < <(find "$ROOT/scripts" -name "*.sh" -print0)
+    shellcheck -e SC1091 "$script" || ERRORS=$((ERRORS + 1))
+  done < <(find "$ROOT/scripts" "$ROOT/config/butane/files" -name "*.sh" -print0)
 fi
 
 echo ""
