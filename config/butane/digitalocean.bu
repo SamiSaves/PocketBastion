@@ -27,8 +27,8 @@ storage:
       contents:
         inline: opencode-dev-server-do
     # Lock public SSH off (belt-and-suspenders with the masked sshd below).
-    # firewall-setup.sh defaults this toggle to true for local debugging, so DO
-    # must ship it false or the nftables ruleset would open tcp/22.
+    # The base default is already false; this makes the WireGuard-only posture
+    # explicit and independent of any base change.
     - path: /etc/opencode-dev-server/firewall.env
       mode: 0644
       contents:

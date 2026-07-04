@@ -55,7 +55,8 @@ render_one() {
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
     | envsubst '${SSH_AUTHORIZED_KEY}' \
-    | podman run --rm -i "$BUTANE_IMAGE" --pretty --strict \
+    | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
+        --pretty --strict --files-dir /w \
     > "$dst"
   echo "OK: $dst"
 }
