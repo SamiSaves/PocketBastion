@@ -127,8 +127,9 @@ storage:
           #!/bin/bash
           set -euo pipefail
 
-          # Safe default in case no env file is present.
-          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
+          # Safe default in case no env file is present: closed to the public.
+          # Environments opt into public SSH via their firewall.env (local does).
+          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
           WG_PORT=51820
 
           # Baked default (lives on the disposable OS disk).
