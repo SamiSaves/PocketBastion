@@ -52,6 +52,7 @@ render_one() {
   local overlay="$1"
   local dst="$2"
   echo "Rendering base.bu + ${overlay} -> $dst"
+  mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
     | envsubst '${SSH_AUTHORIZED_KEY}' \
