@@ -22,12 +22,12 @@ data "digitalocean_ssh_key" "default" {
 # ── State volume (persistent across droplet rebuilds) ───────────────────────
 
 resource "digitalocean_volume" "state" {
-  region                  = var.region
-  name                    = "${var.droplet_name}-state"
-  size                    = var.state_volume_size_gb
-  initial_filesystem_type = "ext4"
-  filesystem_label        = "state"
-  description             = "Persistent state for ${var.droplet_name}"
+  region                   = var.region
+  name                     = "${var.droplet_name}-state"
+  size                     = var.state_volume_size_gb
+  initial_filesystem_type  = "ext4"
+  initial_filesystem_label = "state"
+  description              = "Persistent state for ${var.droplet_name}"
 
   lifecycle {
     prevent_destroy = true
