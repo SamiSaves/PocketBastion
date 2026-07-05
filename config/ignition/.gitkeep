@@ -1,3 +1,0 @@
-# Ignition JSON files are generated here by `make ignition-local` / `make ignition-do`.
-# They are git-ignored because they are build artifacts.
-# This file keeps the directory tracked by git.
