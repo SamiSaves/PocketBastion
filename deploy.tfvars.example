@@ -1,0 +1,27 @@
+# deploy.tfvars.example — copy to deploy.tfvars and edit.
+#
+# This is THE editable DigitalOcean deployment config. Nothing under terraform/
+# or config/ needs per-deployment changes — only this file.
+#
+#   cp deploy.tfvars.example deploy.tfvars
+#   $EDITOR deploy.tfvars
+#   export TF_VAR_do_token=...        # DO API token — from your password manager, NEVER in this file
+#   make tf-apply
+#
+# deploy.tfvars is gitignored; this .example is the tracked template.
+
+# ── Required ──────────────────────────────────────────────────────────────────
+
+# Fedora CoreOS custom image slug or ID uploaded to your DigitalOcean account.
+coreos_image_slug = "REPLACE_ME"
+
+# Name of an SSH key registered in DigitalOcean. Emergency console access only —
+# normal access is over WireGuard.
+ssh_key_name = "REPLACE_ME"
+
+# ── Optional (defaults shown) ─────────────────────────────────────────────────
+
+# region               = "fra1"
+# droplet_name         = "opencode-dev-server"
+# droplet_size         = "s-2vcpu-4gb"
+# state_volume_size_gb = 20

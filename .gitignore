@@ -2,6 +2,10 @@
 config/ignition/*.ign
 images/
 
+# Top-level editable deploy configs (real files; *.example templates are tracked)
+/deploy.tfvars
+/deploy.env
+
 # Terraform state and sensitive outputs
 terraform/.terraform/
 terraform/.terraform.lock.hcl
