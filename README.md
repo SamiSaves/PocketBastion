@@ -107,6 +107,41 @@ This repo never generates, stores, or transports a client private key. Each devi
 
 Address plan: server `10.44.0.1`, laptop `.2`, desktop `.3`, phone `.4`.
 
+## OpenCode setup
+
+OpenCode is configured **once, after the server is up and reachable over
+WireGuard**. Everything here lives on `/mnt/state`, so it survives droplet
+teardown — you only redo it if the persistent disk is destroyed.
+
+1. **Connect over WireGuard** (above), then SSH in over the tunnel:
+   ```bash
+   ssh core@10.44.0.1        # or: make local-ssh
+   ```
+
+2. **Set the server password** (protects the UI even inside the VPN). It is read
+   from `/mnt/state/secrets/opencode.env` by the container:
+   ```bash
+   printf 'OPENCODE_SERVER_PASSWORD=%s\n' 'your-strong-password' \
+     > /mnt/state/secrets/opencode.env
+   chmod 600 /mnt/state/secrets/opencode.env
+   ```
+   Optional: add raw provider keys here instead of step 3, one per line
+   (`ANTHROPIC_API_KEY=…`, `OPENAI_API_KEY=…`).
+
+3. **Authenticate a provider** — an interactive login (e.g. GitHub Copilot's
+   device flow) that can't be pre-baked. Run it inside the container; it
+   persists to `/mnt/state/opencode`:
+   ```bash
+   podman exec -it opencode opencode auth login
+   ```
+
+4. **Restart the service** to pick up the env file:
+   ```bash
+   systemctl --user restart opencode.service
+   ```
+
+The UI is then reachable at `http://10.44.0.1:4096` over the VPN.
+
 ## Security notes
 
 - No secrets are committed to this repository.
