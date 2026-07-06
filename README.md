@@ -32,8 +32,8 @@ scripts/           Helper scripts (check, create, destroy, SSH…)
 terraform/
   digitalocean/    Terraform for DigitalOcean droplet lifecycle
 wireguard/
-  templates/       wg0 and client config templates
-  peers.example.yaml  Example peer list
+  templates/       wg0 config reference (server-side)
+  peers.example.yaml  Example peer address plan
 Makefile           Developer shortcuts
 ```
 
@@ -56,13 +56,62 @@ make local-up
 make local-ssh
 ```
 
-## Phased rollout
+## Connecting over WireGuard
 
-The full phased plan lives in [plan.md](plan.md).
+This repo never generates, stores, or transports a client private key. Each device makes its own keypair; only **public** keys are ever shared. Follow the steps in order — there is no step that puts a private key on your disk or in a QR code.
+
+1. **Get the server's public key** (once the VM is up):
+   ```bash
+   make wg-server-pubkey # saves secrets/wireguard/server.public and prints it
+   ```
+
+2. **Generate the keypair on the device that will connect:**
+   - **Phone:** open the WireGuard app → *Add tunnel* → *Create from scratch*. The
+     app generates the keypair for you. Copy the **Public key** it shows.
+   - **Laptop/desktop (Linux):** generate a keypair; the private key goes into
+     the config file in step 4, and you share only the public key:
+     ```bash
+     umask 077; wg genkey | tee privatekey | wg pubkey
+     ```
+     This prints the **public** key (for step 3) and writes the **private** key
+     to `privatekey`. It stays on this machine and goes into step 4's config.
+
+3. **Register the device's PUBLIC key** on the server:
+   ```bash
+   make wg-add-peer PEER=phone IP=10.44.0.4 PUBKEY=<paste the public key>
+   ```
+
+4. **Create the device tunnel config.** This is the file WireGuard itself uses;
+   it lives on the device, never in this repo. All fields are non-secret except
+   `PrivateKey`, which the device already holds from step 2:
+   ```ini
+   [Interface]
+   Address    = 10.44.0.4/24          # the IP you registered in step 3
+   PrivateKey = <stays on the device, from step 2>
+
+   [Peer]
+   PublicKey           = <server public key from step 1>
+   Endpoint            = <server-ip>:51820
+   AllowedIPs          = 10.44.0.0/24
+   PersistentKeepalive = 25
+   ```
+   - **Phone:** enter these fields into the tunnel you started in step 2; the
+     app stores it in its own secure storage.
+   - **Laptop/desktop (Linux):** save it as `/etc/wireguard/<name>.conf`
+     (root, `chmod 600`), pasting the contents of `privatekey` into the
+     `PrivateKey` line, then delete the `privatekey` file.
+
+5. **Bring the tunnel up** — toggle it on in the phone app, or run
+   `sudo wg-quick up <name>` on Linux. Only now are SSH, OpenCode, and the
+   other services reachable — everything is VPN-only.
+
+Address plan: server `10.44.0.1`, laptop `.2`, desktop `.3`, phone `.4`.
 
 ## Security notes
 
 - No secrets are committed to this repository.
-- WireGuard private keys are generated on first boot and stored in `/mnt/state`.
+- The WireGuard **server** key is generated on first boot and stored in `/mnt/state`.
+- WireGuard **client** keys are generated on each device; only public keys are
+  ever shared. This repo never generates, stores, or transports a client private key.
 - GitHub credentials use narrowly scoped deploy keys, not personal access tokens.
 - All inbound traffic except WireGuard UDP is blocked by firewalld.

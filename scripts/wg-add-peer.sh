@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# wg-add-peer.sh — Add a WireGuard peer to the running VM.
+# wg-add-peer.sh — Register a WireGuard peer on the running VM.
+#
+# Security model: the peer's keypair is generated ON the peer device (the
+# WireGuard phone app, or `wg genkey` on a laptop) and its PRIVATE key never
+# leaves that device. This script only ever handles the peer's PUBLIC key,
+# pasted in on the command line.
 #
 # Usage (via Makefile target):
-#   make wg-add-peer PEER=laptop IP=10.44.0.2
-#
-# Reads the peer's public key from:
-#   secrets/wireguard/<PEER>.public
+#   make wg-add-peer PEER=phone IP=10.44.0.4 PUBKEY=<client-public-key>
 #
 # Appends a [Peer] block to /mnt/state/wireguard/peers.conf on the VM
 # (persists across VM recreations), then restarts WireGuard.
@@ -19,23 +21,26 @@ set -euo pipefail
 
 PEER="${PEER:-}"
 IP="${IP:-}"
+PUBKEY="${PUBKEY:-}"
 
-if [[ -z "$PEER" || -z "$IP" ]]; then
-  echo "Usage: PEER=<name> IP=<vpn-ip> $0" >&2
-  echo "Example: PEER=laptop IP=10.44.0.2 $0" >&2
+if [[ -z "$PEER" || -z "$IP" || -z "$PUBKEY" ]]; then
+  echo "Usage: PEER=<name> IP=<vpn-ip> PUBKEY=<client-public-key> $0" >&2
+  echo "Example: PEER=phone IP=10.44.0.4 PUBKEY=abcd...= $0" >&2
+  echo >&2
+  echo "PUBKEY is the device's PUBLIC key — generate the keypair ON the device" >&2
+  echo "(WireGuard app or 'wg genkey'); its private key must never leave it." >&2
+  exit 1
+fi
+
+# Boundary check: WireGuard keys are 44-char base64 (32 bytes). Reject anything
+# else so a truncated paste or the wrong string never reaches the server config.
+if [[ ! "$PUBKEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
+  echo "ERROR: PUBKEY is not a valid WireGuard key (expected 44-char base64)." >&2
   exit 1
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PUBLIC_KEY_FILE="${REPO_ROOT}/secrets/wireguard/${PEER}.public"
-
-if [[ ! -f "$PUBLIC_KEY_FILE" ]]; then
-  echo "ERROR: Public key not found: $PUBLIC_KEY_FILE" >&2
-  echo "Run: scripts/wg-generate-keys.sh $PEER" >&2
-  exit 1
-fi
-
-PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+PUBLIC_KEY="$PUBKEY"
 VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
 
 if [[ -z "$VM_IP" ]]; then

@@ -1,6 +1,6 @@
 .PHONY: help ignition-local ignition-do validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
-        wg-generate-keys wg-server-pubkey wg-add-peer wg-render-client \
+        wg-server-pubkey wg-add-peer \
         github-install-deploy-key github-test-access \
         harden-check \
         clean
@@ -56,17 +56,11 @@ clean: ## Remove generated Ignition files
 
 # ── WireGuard ────────────────────────────────────────────────────────────────
 
-wg-generate-keys: ## Generate WireGuard keypair for a peer  (PEER=laptop)
-	@scripts/wg-generate-keys.sh "$(PEER)"
-
 wg-server-pubkey: ## Fetch server WireGuard public key from VM → secrets/wireguard/server.public
 	@scripts/wg-server-pubkey.sh
 
-wg-add-peer: ## Add peer to VM WireGuard config  (PEER=laptop IP=10.44.0.2)
+wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10.44.0.4 PUBKEY=<key>)
 	@scripts/wg-add-peer.sh
-
-wg-render-client: ## Render client WireGuard config  (PEER=laptop ENDPOINT=<vm-ip>)
-	@scripts/wg-render-client.sh
 
 # ── GitHub access ────────────────────────────────────────────────────────────
 
