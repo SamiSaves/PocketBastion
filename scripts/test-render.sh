@@ -17,6 +17,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Render without needing a real key on the machine (validation only).
 export SSH_AUTHORIZED_KEY="${SSH_AUTHORIZED_KEY:-ssh-ed25519 AAAAtest render-validation-placeholder}"
+# Bootstrap peer placeholders (valid 44-char base64) so the DO render succeeds.
+export WG_BOOTSTRAP_PUBKEY="${WG_BOOTSTRAP_PUBKEY:-$(printf '0%.0s' {1..43})=}"
+export WG_BOOTSTRAP_IP="${WG_BOOTSTRAP_IP:-10.44.0.2}"
 bash "$ROOT/scripts/render-ignition.sh" all >/dev/null
 
 LOCAL="$ROOT/config/ignition/local.ign"
@@ -44,6 +47,8 @@ refute "by-label/state"                                      "$LOCAL"
 # DigitalOcean-only: sshd masked, state disk mounted by label, no format/hello.
 assert "sshd.service"                 "$DO"
 assert "What=/dev/disk/by-label/state" "$DO"
+assert "/etc/wireguard/bootstrap-peer.conf" "$DO"
+refute "/etc/wireguard/bootstrap-peer.conf" "$LOCAL"
 refute "hello.container"              "$DO"
 refute "format-state-disk.service"   "$DO"
 refute "What=/dev/vdb"               "$DO"

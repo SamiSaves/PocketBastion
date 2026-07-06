@@ -35,5 +35,16 @@ if [[ -s "$PEERS_FILE" ]]; then
   cat "$PEERS_FILE" >> "$WG_CONF"
 fi
 
+# Append the provision-time bootstrap peer if present. DigitalOcean bakes this
+# in via Ignition so the tunnel is up on first boot, before SSH exists; local
+# never ships the file so this is a no-op there.
+# ponytail: no dedup — if you later re-add the bootstrap device via wg-add-peer
+# you'll get a duplicate [Peer]; just don't re-add the laptop that seeded boot.
+BOOTSTRAP_FILE=/etc/wireguard/bootstrap-peer.conf
+if [[ -s "$BOOTSTRAP_FILE" ]]; then
+  printf '\n' >> "$WG_CONF"
+  cat "$BOOTSTRAP_FILE" >> "$WG_CONF"
+fi
+
 chmod 600 "$WG_CONF"
 echo "wg0.conf rendered ($(grep -c '^\[Peer\]' "$WG_CONF" || true) peer(s))."
