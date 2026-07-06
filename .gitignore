@@ -2,10 +2,6 @@
 config/ignition/*.ign
 images/
 
-# WireGuard private keys and actual peer configs (never commit)
-wireguard/keys/
-wireguard/peers.yaml
-
 # Terraform state and sensitive outputs
 terraform/.terraform/
 terraform/.terraform.lock.hcl

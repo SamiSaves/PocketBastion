@@ -1,6 +1,7 @@
 # peers.example.yaml — documentation of stable peer VPN address assignments.
 # Real public keys live in secrets/wireguard/ (gitignored).
-# Manage peers with: make wg-add-peer PEER=<name> IP=<vpn-ip>
+# Register peers with: make wg-add-peer PEER=<name> IP=<vpn-ip> PUBKEY=<device-public-key>
+# Keys are generated ON each device; only public keys are ever shared.
 #
 # VPN subnet: 10.44.0.0/24
 
