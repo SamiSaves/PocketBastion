@@ -2,11 +2,14 @@
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-server-pubkey wg-add-peer \
         github-install-deploy-key github-test-access \
+        tf-plan tf-apply \
         harden-check \
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
 VM_NAME      := opencode-dev-server-local
+TF_DIR       := terraform/digitalocean
+TFVARS       := $(abspath deploy.tfvars)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -69,3 +72,12 @@ github-install-deploy-key: ## Generate a repo-scoped GitHub deploy key on the VM
 
 github-test-access: ## Test GitHub deploy-key auth from the VM (ssh -T git@github.com)
 	@scripts/github-test-access.sh
+
+# ── DigitalOcean (Terraform) ──────────────────────────────────────
+# Both read the root ./deploy.tfvars. Set TF_VAR_do_token in your env first.
+
+tf-plan: ## Terraform plan for DigitalOcean (uses ./deploy.tfvars)
+	@cd $(TF_DIR) && terraform init -input=false && terraform plan -var-file="$(TFVARS)"
+
+tf-apply: ## Terraform apply for DigitalOcean (uses ./deploy.tfvars)
+	@cd $(TF_DIR) && terraform init -input=false && terraform apply -var-file="$(TFVARS)"
