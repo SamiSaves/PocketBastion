@@ -43,6 +43,33 @@ fi
 
 export SSH_AUTHORIZED_KEY
 
+# ── Resolve WireGuard bootstrap peer (DigitalOcean renders only) ──────────────
+# The DO overlay bakes peer #0 into Ignition so the tunnel is up before SSH
+# exists. Honors pre-set env vars (used by test-render); else reads ./deploy.env.
+resolve_bootstrap_peer() {
+  if [[ -z "${WG_BOOTSTRAP_PUBKEY:-}" || -z "${WG_BOOTSTRAP_IP:-}" ]]; then
+    local f="${REPO_ROOT}/deploy.env"
+    if [[ ! -f "$f" ]]; then
+      echo "ERROR: ${f} not found." >&2
+      echo "       Copy deploy.env.example to deploy.env and set the bootstrap" >&2
+      echo "       WireGuard peer (WG_BOOTSTRAP_PUBKEY, WG_BOOTSTRAP_IP)." >&2
+      exit 1
+    fi
+    set -a; source "$f"; set +a
+  fi
+  : "${WG_BOOTSTRAP_PUBKEY:?set WG_BOOTSTRAP_PUBKEY in deploy.env}"
+  : "${WG_BOOTSTRAP_IP:?set WG_BOOTSTRAP_IP in deploy.env}"
+  if [[ ! "$WG_BOOTSTRAP_PUBKEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
+    echo "ERROR: WG_BOOTSTRAP_PUBKEY is not a valid WireGuard key (44-char base64)." >&2
+    exit 1
+  fi
+  if [[ ! "$WG_BOOTSTRAP_IP" =~ ^10\.44\.0\.[0-9]{1,3}$ ]]; then
+    echo "ERROR: WG_BOOTSTRAP_IP must be a 10.44.0.x address." >&2
+    exit 1
+  fi
+  export WG_BOOTSTRAP_PUBKEY WG_BOOTSTRAP_IP
+}
+
 # ── Render one Butane config ─────────────────────────────────────────────────
 
 # render_one <overlay-filename> <dst>
@@ -55,7 +82,7 @@ render_one() {
   mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
-    | envsubst '${SSH_AUTHORIZED_KEY}' \
+    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}' \
     | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
         --pretty --strict --files-dir /w \
     > "$dst"
@@ -71,10 +98,12 @@ case "$TARGET" in
     render_one local.bu "${REPO_ROOT}/config/ignition/local.ign"
     ;;
   do|digitalocean)
+    resolve_bootstrap_peer
     render_one digitalocean.bu "${REPO_ROOT}/config/ignition/digitalocean.ign"
     ;;
   all)
     render_one local.bu "${REPO_ROOT}/config/ignition/local.ign"
+    resolve_bootstrap_peer
     render_one digitalocean.bu "${REPO_ROOT}/config/ignition/digitalocean.ign"
     ;;
   *)

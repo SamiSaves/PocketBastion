@@ -35,6 +35,18 @@ storage:
         inline: |
           ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
           WG_PORT=51820
+    # Bootstrap WireGuard peer, baked in at render time from ./deploy.env.
+    # Seeds peer #0 (your laptop) so the tunnel comes up on first boot — before
+    # SSH exists — breaking the chicken-and-egg of adding peers over the tunnel.
+    # A WireGuard PUBLIC key + VPN IP are not secrets. Appended by wg-setup.sh.
+    - path: /etc/wireguard/bootstrap-peer.conf
+      mode: 0600
+      contents:
+        inline: |
+          [Peer]
+          # bootstrap (laptop)
+          PublicKey  = ${WG_BOOTSTRAP_PUBKEY}
+          AllowedIPs = ${WG_BOOTSTRAP_IP}/32
 systemd:
   units:
     # var-mnt-state.mount: the DO Volume is pre-formatted by Terraform
