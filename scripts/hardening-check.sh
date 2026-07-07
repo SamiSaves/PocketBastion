@@ -9,12 +9,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
-
-if [[ -z "$VM_IP" ]]; then
-  echo "ERROR: Could not determine VM IP. Is the VM running?" >&2
-  exit 1
-fi
+# Runs against the live box over the WireGuard tunnel — 10.44.0.1 on both envs.
+VM_IP="${SERVER_IP:-10.44.0.1}"
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10)
 

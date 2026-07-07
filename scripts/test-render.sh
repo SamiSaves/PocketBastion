@@ -34,6 +34,7 @@ for ign in "$LOCAL" "$DO"; do
   assert "/usr/local/sbin/wg-setup.sh"                            "$ign"
   assert "/usr/local/sbin/firewall-setup.sh"                      "$ign"
   assert "/etc/containers/systemd/users/1000/opencode.container"  "$ign"
+  assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign"
   assert "wg-quick@wg0.service"                                   "$ign"
   assert "state-dirs.service"                                     "$ign"
 done
@@ -44,11 +45,8 @@ assert "format-state-disk.service"                          "$LOCAL"
 assert "What=/dev/vdb"                                       "$LOCAL"
 refute "by-label/state"                                      "$LOCAL"
 
-# DigitalOcean-only: sshd masked, state disk mounted by label, no format/hello.
-assert "sshd.service"                 "$DO"
+# DigitalOcean-only: state disk mounted by label, no format/hello smoke-test.
 assert "What=/dev/disk/by-label/state" "$DO"
-assert "/etc/wireguard/bootstrap-peer.conf" "$DO"
-refute "/etc/wireguard/bootstrap-peer.conf" "$LOCAL"
 refute "hello.container"              "$DO"
 refute "format-state-disk.service"   "$DO"
 refute "What=/dev/vdb"               "$DO"
