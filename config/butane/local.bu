@@ -6,20 +6,12 @@ version: 1.5.0
 #   yq eval-all 'select(fi==0) *+ select(fi==1)' base.bu local.bu | butane
 #
 # Contains ONLY what differs from base for local development:
-#   - the core SSH key (injected at render time via ${SSH_AUTHORIZED_KEY})
 #   - local hostname + motd
-#   - the public-SSH debug toggle (true, so you can SSH over libvirt while
-#     bringing WireGuard up; flip it off once the tunnel is proven)
 #   - the hello.container smoke test (local validation only)
 #   - state disk on /dev/vdb with format-on-first-boot (libvirt second disk)
-passwd:
-  users:
-    - name: core
-      ssh_authorized_keys:
-        - "${SSH_AUTHORIZED_KEY}"
-      groups:
-        - wheel
-        - sudo
+# The core user + SSH key, firewall policy, and bootstrap WG peer live in base.bu
+# — local mirrors DO's WireGuard-only access model. Break-glass is the serial
+# console (make local-console), not public SSH.
 storage:
   files:
     - path: /etc/hostname
@@ -35,17 +27,7 @@ storage:
           │  opencode-dev-server  (local KVM)           │
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
-    # Firewall toggle — baked default that lives on the disposable OS.
-    # While true, SSH is reachable on the normal/libvirt network for debugging.
-    # Once WireGuard access is proven, flip this off. The recommended way is to
-    # create /mnt/state/firewall/firewall.env with ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=false
-    # so the change survives VM recreation (see firewall-setup.sh in base.bu).
-    - path: /etc/opencode-dev-server/firewall.env
-      mode: 0644
-      contents:
-        inline: |
-          ALLOW_PUBLIC_SSH_FOR_LOCAL_DEBUG=true
-          WG_PORT=51820
+
     # Rootless smoke-test container (picked up by the core user's systemd, not root).
     - path: /etc/containers/systemd/users/1000/hello.container
       mode: 0644

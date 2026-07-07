@@ -20,13 +20,9 @@
 #   GitHub → repo → Settings → Deploy keys → Add deploy key (allow write access)
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
-
-if [[ -z "$VM_IP" ]]; then
-  echo "ERROR: Could not determine VM IP. Is the VM running?" >&2
-  exit 1
-fi
+# Managed over the WireGuard tunnel — 10.44.0.1 on both local and DO. Override
+# SERVER_IP for the one-time local bootstrap: SERVER_IP="$(scripts/local/ip.sh)".
+VM_IP="${SERVER_IP:-10.44.0.1}"
 
 ssh -o StrictHostKeyChecking=no "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -euo pipefail

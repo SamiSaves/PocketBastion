@@ -39,14 +39,11 @@ if [[ ! "$PUBKEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
   exit 1
 fi
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PUBLIC_KEY="$PUBKEY"
-VM_IP="$("${REPO_ROOT}/scripts/local/ip.sh")"
-
-if [[ -z "$VM_IP" ]]; then
-  echo "ERROR: Could not determine VM IP. Is the VM running?" >&2
-  exit 1
-fi
+# The server is managed over the WireGuard tunnel — same address (10.44.0.1) on
+# local and DO. Override SERVER_IP only for the one-time local bootstrap before
+# your tunnel is up, e.g. SERVER_IP="$(scripts/local/ip.sh)".
+VM_IP="${SERVER_IP:-10.44.0.1}"
 
 # Check peer not already present
 if ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \

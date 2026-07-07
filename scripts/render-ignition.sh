@@ -95,6 +95,7 @@ TARGET="${1:-local}"
 
 case "$TARGET" in
   local)
+    resolve_bootstrap_peer
     render_one local.bu "${REPO_ROOT}/config/ignition/local.ign"
     ;;
   do|digitalocean)
@@ -102,8 +103,8 @@ case "$TARGET" in
     render_one digitalocean.bu "${REPO_ROOT}/config/ignition/digitalocean.ign"
     ;;
   all)
-    render_one local.bu "${REPO_ROOT}/config/ignition/local.ign"
     resolve_bootstrap_peer
+    render_one local.bu "${REPO_ROOT}/config/ignition/local.ign"
     render_one digitalocean.bu "${REPO_ROOT}/config/ignition/digitalocean.ign"
     ;;
   *)

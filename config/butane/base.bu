@@ -11,7 +11,18 @@ version: 1.5.0
 # Invariant: every file path and every systemd unit name lives in exactly ONE
 # of {base, overlay}. `*+` appends arrays, so a path/name defined in both would
 # produce a duplicate and Butane --strict would reject it. Keep divergent
-# entries (hostname, state-disk mount, sshd policy, debug toggles) in overlays.
+# entries (hostname, root disk device, format-on-first-boot) in overlays.
+passwd:
+  users:
+    # The core user (UID 1000) owns the rootless Quadlet containers. Its SSH key
+    # is injected at render time; sshd runs but the firewall restricts it to the
+    # WireGuard interface (firewall-setup.sh) — identical on local and DO.
+    - name: core
+      ssh_authorized_keys:
+        - "${SSH_AUTHORIZED_KEY}"
+      groups:
+        - wheel
+        - sudo
 storage:
   directories:
     # /mnt is a symlink to /var/mnt on CoreOS; use the canonical path.
@@ -45,6 +56,18 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/firewall-setup.sh
+    # Bootstrap WireGuard peer, baked in at render time from ./deploy.env. Seeds
+    # peer #0 (your laptop) so the tunnel is up on first boot — before you can
+    # reach the box over SSH, which is WireGuard-only. A WG PUBLIC key + VPN IP
+    # are not secrets. Appended to wg0.conf by wg-setup.sh.
+    - path: /etc/wireguard/bootstrap-peer.conf
+      mode: 0600
+      contents:
+        inline: |
+          [Peer]
+          # bootstrap (laptop)
+          PublicKey  = ${WG_BOOTSTRAP_PUBKEY}
+          AllowedIPs = ${WG_BOOTSTRAP_IP}/32
 systemd:
   units:
     - name: state-dirs.service
@@ -64,10 +87,9 @@ systemd:
           /mnt/state/npm-cache \
           /mnt/state/pnpm-store \
           /mnt/state/wireguard \
-          /mnt/state/secrets \
-          /mnt/state/firewall
-        # System-owned dirs (used by root services: wg-setup, firewall).
-        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard /mnt/state/firewall
+          /mnt/state/secrets
+        # System-owned dir (used by the root wg-setup service).
+        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard
         # Rootless-container dirs must be owned by the core user (UID 1000),
         # since the OpenCode/game containers run rootless as core and need to
         # read/write their data, repos, caches, and secrets.
