@@ -49,6 +49,10 @@ fi
 
 export SSH_AUTHORIZED_KEY
 
+# ── Git commit identity (optional; empty is fine until you set it) ────────────
+export GIT_USER_NAME="${GIT_USER_NAME:-}"
+export GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
+
 # ── Resolve WireGuard bootstrap peer ─────────────────────────────────────────
 # Baked into Ignition as peer #0 so the tunnel is up before SSH exists. Honors
 # pre-set env vars (used by test-render); else reads ./deploy.env.
@@ -81,7 +85,7 @@ render_one() {
   mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
-    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}' \
+    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL}' \
     | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
         --pretty --strict --files-dir /w \
     > "$dst"

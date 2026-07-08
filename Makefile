@@ -1,7 +1,7 @@
 .PHONY: help ignition-local ignition-do validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-server-pubkey wg-add-peer \
-        github-install-deploy-key github-test-access \
+        repo-add repo-list repo-remove \
         tf-plan tf-apply \
         harden-check \
         clean
@@ -65,13 +65,16 @@ wg-server-pubkey: ## Fetch server WireGuard public key from VM → secrets/wireg
 wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10.44.0.4 PUBKEY=<key>)
 	@scripts/wg-add-peer.sh
 
-# ── GitHub access ────────────────────────────────────────────────────────────
+# ── GitHub repositories ──────────────────────────────────────────────────────
 
-github-install-deploy-key: ## Generate a repo-scoped GitHub deploy key on the VM
-	@scripts/github-install-deploy-key.sh
+repo-add: ## Grant the VM access to a repo  (REPO=git@github.com:owner/name.git [WRITE=1])
+	@scripts/repo-add.sh "$(REPO)" $(if $(filter 1 true yes,$(WRITE)),--write,)
 
-github-test-access: ## Test GitHub deploy-key auth from the VM (ssh -T git@github.com)
-	@scripts/github-test-access.sh
+repo-list: ## List repos the VM has git access to
+	@scripts/repo-list.sh
+
+repo-remove: ## Revoke the VM's access to a repo  (NAME=owner-name [PURGE=1])
+	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1 true yes,$(PURGE)),--purge,)
 
 # ── DigitalOcean (Terraform) ──────────────────────────────────────
 # Both read the root ./deploy.tfvars. Set TF_VAR_do_token in your env first.

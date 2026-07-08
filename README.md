@@ -236,13 +236,20 @@ restarts WireGuard.
 
 ### GitHub access
 
-To pull/push repos, install a repo-scoped deploy key on the VM (not a personal
-access token):
+Each repo gets its own deploy key, generated on the VM and never leaving the
+state disk. Access is per-repo and explicit — adding a repo is a deliberate step:
 
 ```bash
-make github-install-deploy-key
-make github-test-access
+make repo-add REPO=git@github.com:owner/name.git          # read-only
+make repo-add REPO=git@github.com:owner/name.git WRITE=1  # allow push
+make repo-list
+make repo-remove NAME=owner-name                          # keeps the checkout
+make repo-remove NAME=owner-name PURGE=1                  # also deletes it
 ```
+
+`repo-add` pauses while you register the printed public key on the repo
+(Settings → Deploy keys), then verifies by cloning. Inside the container git
+authenticates through an ssh-agent, so the private keys are never exposed to it.
 
 ## Managing the VM
 

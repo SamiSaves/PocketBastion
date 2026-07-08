@@ -20,6 +20,8 @@ export SSH_AUTHORIZED_KEY="${SSH_AUTHORIZED_KEY:-ssh-ed25519 AAAAtest render-val
 # Bootstrap peer placeholders (valid 44-char base64) so the DO render succeeds.
 export WG_BOOTSTRAP_PUBKEY="${WG_BOOTSTRAP_PUBKEY:-$(printf '0%.0s' {1..43})=}"
 export WG_BOOTSTRAP_IP="${WG_BOOTSTRAP_IP:-10.44.0.2}"
+export GIT_USER_NAME="${GIT_USER_NAME:-render validation}"
+export GIT_USER_EMAIL="${GIT_USER_EMAIL:-render@validation}"
 bash "$ROOT/scripts/render-ignition.sh" all >/dev/null
 
 LOCAL="$ROOT/config/ignition/local.ign"
@@ -37,6 +39,11 @@ for ign in "$LOCAL" "$DO"; do
   assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign"
   assert "wg-quick@wg0.service"                                   "$ign"
   assert "state-dirs.service"                                     "$ign"
+  assert "/usr/local/sbin/git-setup.sh"                          "$ign"
+  assert "git-setup.service"                                      "$ign"
+  assert "opencode-ssh-agent.service"                             "$ign"
+  assert "/etc/opencode/gitconfig"                                "$ign"
+  assert "/etc/tmpfiles.d/opencode.conf"                          "$ign"
   # Break-glass console login: default password hash baked into the core user.
   assert '\$6\$uxZJIlbecCN0'                                     "$ign"
 done
