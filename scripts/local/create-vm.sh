@@ -101,7 +101,11 @@ virsh --connect qemu:///system vol-create --pool "$POOL" /dev/stdin << VOLEOF
 VOLEOF
 
 echo "Copying Ignition config ..."
-cp -f "$IGNITION" "$IGNITION_COPY"
+IGN_VOL_NAME="${VM_NAME}.ign"
+IGN_SIZE=$(stat -c%s "$IGNITION")
+virsh --connect qemu:///system vol-delete --pool "$POOL" "$IGN_VOL_NAME" 2>/dev/null || true
+virsh --connect qemu:///system vol-create-as "$POOL" "$IGN_VOL_NAME" "$IGN_SIZE" --format raw
+virsh --connect qemu:///system vol-upload --pool "$POOL" "$IGN_VOL_NAME" "$IGNITION"
 
 # ── Create VM ────────────────────────────────────────────────────────────────
 
@@ -117,7 +121,7 @@ virt-install \
   --disk "vol=${POOL}/${VOL_NAME},format=qcow2,bus=virtio" \
   --disk "vol=${POOL}/${STATE_VOL_NAME},format=qcow2,bus=virtio" \
   --network network=default \
-  --qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=${IGNITION_COPY}" \
+  --sysinfo "type=fwcfg,entry0.name=opt/com.coreos/config,entry0.file=${IGNITION_COPY}" \
   --noautoconsole \
   --wait 0
 
