@@ -17,7 +17,14 @@ passwd:
     # The core user (UID 1000) owns the rootless Quadlet containers. Its SSH key
     # is injected at render time; sshd runs but the firewall restricts it to the
     # WireGuard interface (firewall-setup.sh) — identical on local and DO.
+    #
+    # password_hash is a KNOWN, PUBLIC default ("space-depend-south") used ONLY
+    # for break-glass console login — the serial console (local) or DO's web
+    # console. It is NOT a network credential: sshd is key-only + WireGuard-only,
+    # so this password can never be used over the internet. The
+    # expire-core-password.service below forces a change on first console login.
     - name: core
+      password_hash: "$6$uxZJIlbecCN0.R4V$uEOl0OUAciUTCoeuzZLooVYni9Mr9jHTfZRHDs8QaieEWp0o0kZJ7eviUFHeutibqDA/jAb/E/1DGDTtVuIQ51"
       ssh_authorized_keys:
         - "${SSH_AUTHORIZED_KEY}"
       groups:
@@ -106,6 +113,25 @@ systemd:
         ExecStart=/usr/bin/touch /mnt/state/secrets/opencode.env
         ExecStart=/usr/bin/chown 1000:1000 /mnt/state/secrets/opencode.env
         ExecStart=/usr/bin/chmod 600 /mnt/state/secrets/opencode.env
+
+        [Install]
+        WantedBy=multi-user.target
+    # Force the core user to replace the public default password the first time
+    # they log in on the console. ConditionFirstBoot means this runs once on a
+    # fresh OS (and again after an OS rebuild, which is fine — a rebuilt disk
+    # starts from the public default again). SSH is unaffected: it's key-only.
+    - name: expire-core-password.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Expire default core password so first console login must change it
+        ConditionFirstBoot=yes
+        After=systemd-user-sessions.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/passwd --expire core
 
         [Install]
         WantedBy=multi-user.target
