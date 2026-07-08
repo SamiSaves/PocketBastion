@@ -12,8 +12,13 @@ PublishPort=10.44.0.1:4096:4096
 Volume=/mnt/state/opencode:/data:Z
 Environment=XDG_DATA_HOME=/data
 Environment=XDG_CONFIG_HOME=/data/config
+# HOME so git/ssh find /data/.gitconfig and /data/.ssh (written by git-setup.sh).
+Environment=HOME=/data
 # Mount repositories so OpenCode can work on them.
 Volume=/mnt/state/repos:/repos:Z
+# ssh-agent socket for git auth — deploy keys stay on the host, only the socket
+# is shared, so a compromised agent can use them but not exfiltrate them.
+Volume=/run/opencode:/run/opencode:z
 # Provider API keys + OPENCODE_SERVER_PASSWORD come from the state disk,
 # never from git. The file is pre-created (empty) by state-dirs.service
 # so the server starts for the VPN-only smoke test before creds are set.
