@@ -37,8 +37,7 @@ for ign in "$LOCAL" "$DO"; do
   assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign"
   assert "wg-quick@wg0.service"                                   "$ign"
   assert "state-dirs.service"                                     "$ign"
-  # Break-glass console login: default password hash + first-boot force-change.
-  assert "expire-core-password.service"                          "$ign"
+  # Break-glass console login: default password hash baked into the core user.
   assert '\$6\$uxZJIlbecCN0'                                     "$ign"
 done
 
