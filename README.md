@@ -135,11 +135,13 @@ way in (this is also your break-glass path if WireGuard ever fails):
 make local-console
 ```
 
-Log in as `core` with the public default password **`space-depend-south`**.
-You'll be **forced to set a new password immediately** — do it, this is the
-whole point of the default. Then read the server's public key:
+Log in as `core` with the public default password **`space-depend-south`**, then
+**change it right away** with `passwd` — it's a known default committed in the
+repo, so treat your first login as the moment to replace it. Then read the
+server's public key:
 
 ```bash
+passwd                                          # set your own password
 sudo cat /mnt/state/wireguard/server_public.key
 # Ctrl-] to exit the console
 ```
@@ -267,7 +269,7 @@ make tf-apply           # uses ./deploy.tfvars
 
 Getting the server key and breaking glass work the same as local, via DO's web
 **Droplet Console**: log in as `core` with the default password
-`space-depend-south`, change it when prompted, then
+`space-depend-south`, change it with `passwd`, then
 `sudo cat /mnt/state/wireguard/server_public.key`. That console sits behind your
 DigitalOcean account login, so the default password is never internet-reachable.
 
@@ -282,7 +284,7 @@ their keys); a DO Reserved IP avoids even that.
 
 - No secrets are committed to this repository.
 - The `core` user has a **public, default console password** (`space-depend-south`)
-  for break-glass only. It is force-expired on first login, and sshd is key-only
+  for break-glass only. Change it on your first console login; sshd is key-only
   and WireGuard-only, so it is never usable over the network.
 - The WireGuard **server** key is generated on first boot, stored on `/mnt/state`,
   and reused across VM/droplet rebuilds — teardown does not force clients to
