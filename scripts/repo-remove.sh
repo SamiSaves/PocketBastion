@@ -42,8 +42,8 @@ if git ls-remote "git@$name:$owner/$repo.git" >/dev/null 2>&1; then
   echo "ABORT: access still works — the deploy key was not revoked." >&2
   exit 5
 fi
-SSH_AUTH_SOCK=/run/opencode/ssh-agent.sock ssh-add -d "$SECRETS/$name.pub" 2>/dev/null || true
 rm -f "$SECRETS/$name" "$SECRETS/$name.pub" "$SECRETS/$name.meta"
+rm -f "/mnt/state/opencode/.ssh/$name"
 sudo /usr/local/sbin/git-setup.sh
 if [[ "$purge" == "true" ]]; then
   rm -rf "/mnt/state/repos/$repo"

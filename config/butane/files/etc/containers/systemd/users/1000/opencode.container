@@ -18,9 +18,6 @@ Environment=HOME=/data
 Volume=/mnt/state/repos:/repos:Z
 # Start in /repos so OpenCode's project picker defaults to the cloned repos.
 WorkingDir=/repos
-# ssh-agent socket for git auth — deploy keys stay on the host, only the socket
-# is shared, so a compromised agent can use them but not exfiltrate them.
-Volume=/run/opencode:/run/opencode:z
 # Provider API keys + OPENCODE_SERVER_PASSWORD come from the state disk,
 # never from git. The file is pre-created (empty) by state-dirs.service
 # so the server starts for the VPN-only smoke test before creds are set.
