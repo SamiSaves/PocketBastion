@@ -45,7 +45,6 @@ PUBLIC_KEY="$PUBKEY"
 # your tunnel is up, e.g. SERVER_IP="$(scripts/local/ip.sh)".
 VM_IP="${SERVER_IP:-10.44.0.1}"
 
-# Check peer not already present
 if ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \
     grep -qF "$PUBLIC_KEY" /mnt/state/wireguard/peers.conf 2>/dev/null; then
   echo "Peer '$PEER' is already present in peers.conf — skipping."
@@ -54,13 +53,11 @@ fi
 
 echo "Adding peer '$PEER' ($IP) to VM ..."
 
-# Append [Peer] block to peers.conf on the state disk (survives VM recreation)
 printf '\n[Peer]\n# %s\nPublicKey  = %s\nAllowedIPs = %s/32\n' \
   "$PEER" "$PUBLIC_KEY" "$IP" \
   | ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \
       sudo tee -a /mnt/state/wireguard/peers.conf > /dev/null
 
-# Re-run wg-setup.service to regenerate wg0.conf, then reload WireGuard
 ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \
   "sudo systemctl restart wg-setup.service && sudo systemctl restart wg-quick@wg0.service"
 

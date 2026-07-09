@@ -27,13 +27,12 @@ fi
 OUT+="$(ssh "${SSH_OPTS[@]}" "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -uo pipefail
 
-# A service is "public" if it listens anywhere other than loopback or the
-# WireGuard IP (10.44.0.1). Wildcard binds (0.0.0.0 / [::]) are the real risk.
 check_not_public() {
   local port=$1 label=$2 bad
+  local trusted_binds='^(127\.0\.0\.1|\[::1\]|10\.44\.0\.1)$'
   bad=$(ss -Hltn "sport = :$port" 2>/dev/null \
     | awk '{print $4}' | sed 's/:[0-9]*$//' \
-    | grep -vE '^(127\.0\.0\.1|\[::1\]|10\.44\.0\.1)$' || true)
+    | grep -vE "$trusted_binds" || true)
   if [[ -z "$bad" ]]; then
     echo "PASS: port $port ($label) not listening on public interface"
   else

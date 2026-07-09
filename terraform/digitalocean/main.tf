@@ -59,14 +59,12 @@ resource "digitalocean_firewall" "server" {
 
   droplet_ids = [digitalocean_droplet.server.id]
 
-  # Allow WireGuard from anywhere
   inbound_rule {
     protocol         = "udp"
     port_range       = "51820"
     source_addresses = ["0.0.0.0/0", "::/0"]
   }
 
-  # Allow all outbound
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
