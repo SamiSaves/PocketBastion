@@ -1,0 +1,13 @@
+[Unit]
+Description=Mount persistent state disk at /var/mnt/state
+After=format-state-disk.service
+Requires=format-state-disk.service
+
+[Mount]
+What=/dev/vdb
+Where=/var/mnt/state
+Type=ext4
+Options=defaults,noatime
+
+[Install]
+WantedBy=local-fs.target

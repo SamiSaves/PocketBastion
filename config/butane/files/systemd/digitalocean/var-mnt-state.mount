@@ -1,0 +1,12 @@
+[Unit]
+Description=Mount persistent state volume at /var/mnt/state
+Before=local-fs.target
+
+[Mount]
+What=/dev/disk/by-label/state
+Where=/var/mnt/state
+Type=ext4
+Options=defaults,noatime
+
+[Install]
+WantedBy=local-fs.target

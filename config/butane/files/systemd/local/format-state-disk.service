@@ -1,0 +1,15 @@
+[Unit]
+Description=Format /dev/vdb as ext4 state disk if unformatted
+DefaultDependencies=no
+After=systemd-udev-settle.service
+Before=var-mnt-state.mount
+ConditionPathExists=/dev/vdb
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'blkid /dev/vdb || mkfs.ext4 -L state /dev/vdb'
+ExecStartPost=/usr/sbin/udevadm settle
+
+[Install]
+WantedBy=local-fs.target

@@ -51,38 +51,11 @@ storage:
           WantedBy=default.target
 systemd:
   units:
+    # Unit bodies live in files/systemd/local/*.{service,mount}; see base.bu.
     - name: format-state-disk.service
       enabled: true
-      contents: |
-        [Unit]
-        Description=Format /dev/vdb as ext4 state disk if unformatted
-        DefaultDependencies=no
-        After=systemd-udev-settle.service
-        Before=var-mnt-state.mount
-        ConditionPathExists=/dev/vdb
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/bin/bash -c 'blkid /dev/vdb || mkfs.ext4 -L state /dev/vdb'
-        ExecStartPost=/usr/sbin/udevadm settle
-
-        [Install]
-        WantedBy=local-fs.target
+      contents_local: files/systemd/local/format-state-disk.service
     # A .mount unit's name must match its Where= path (var-mnt-state = /var/mnt/state).
     - name: var-mnt-state.mount
       enabled: true
-      contents: |
-        [Unit]
-        Description=Mount persistent state disk at /var/mnt/state
-        After=format-state-disk.service
-        Requires=format-state-disk.service
-
-        [Mount]
-        What=/dev/vdb
-        Where=/var/mnt/state
-        Type=ext4
-        Options=defaults,noatime
-
-        [Install]
-        WantedBy=local-fs.target
+      contents_local: files/systemd/local/var-mnt-state.mount

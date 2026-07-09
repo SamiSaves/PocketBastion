@@ -22,18 +22,7 @@ systemd:
   units:
     # var-mnt-state.mount: the DO Volume is pre-formatted by Terraform
     # (initial_filesystem_type=ext4, label=state), so no format service is needed.
+    # Unit body lives in files/systemd/digitalocean/var-mnt-state.mount; see base.bu.
     - name: var-mnt-state.mount
       enabled: true
-      contents: |
-        [Unit]
-        Description=Mount persistent state volume at /var/mnt/state
-        Before=local-fs.target
-
-        [Mount]
-        What=/dev/disk/by-label/state
-        Where=/var/mnt/state
-        Type=ext4
-        Options=defaults,noatime
-
-        [Install]
-        WantedBy=local-fs.target
+      contents_local: files/systemd/digitalocean/var-mnt-state.mount
