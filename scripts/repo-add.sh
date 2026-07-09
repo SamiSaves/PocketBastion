@@ -111,7 +111,6 @@ KH="$SECRETS/known_hosts"
 touch "$KH"
 grep -qxF "$hostkey" "$KH" || printf '%s\n' "$hostkey" >> "$KH"
 sudo /usr/local/sbin/git-setup.sh
-SSH_AUTH_SOCK=/run/opencode/ssh-agent.sock ssh-add "$SECRETS/$name" 2>/dev/null || true
 if ! git ls-remote "git@$name:$owner/$repo.git" >/dev/null 2>&1; then
   echo "FAIL: could not authenticate. Is the deploy key added to the repo?" >&2
   exit 4

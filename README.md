@@ -249,9 +249,9 @@ make repo-remove NAME=github-com-owner-name PURGE=1      # also deletes it
 
 `repo-add` pauses while you register the printed public key on the repo (as a
 deploy key), then verifies by cloning. For hosts other than github.com it shows
-the server's SSH fingerprint for a one-time confirmation. Inside the container
-git authenticates through an ssh-agent, so the private keys are never exposed to
-it.
+the server's SSH fingerprint for a one-time confirmation. The container gets the
+per-repo deploy key directly — a leaked key grants write to only that one repo,
+a smaller blast radius than the API keys already in the container.
 
 ## Managing the VM
 

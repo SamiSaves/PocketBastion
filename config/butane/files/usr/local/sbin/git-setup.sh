@@ -29,21 +29,20 @@ for meta in "$SECRETS"/*.meta; do
   host= owner= repo= name= url= verified=
   # shellcheck disable=SC1090
   . "$meta"
-  cp -f "$SECRETS/$name.pub" "$DATA/.ssh/$name.pub"
+  # The container gets the deploy key directly: a per-repo key is a smaller blast
+  # radius than the API keys already in the container, so no ssh-agent indirection.
+  install -m 600 "$SECRETS/$name" "$DATA/.ssh/$name"
 
-  # Host (core) uses the private key directly — this is the trusted bootstrap user.
+  # Host (core) reads the key from the secrets dir; container reads its own copy.
   {
     printf 'Host %s\n  HostName %s\n  User git\n' "$name" "$host"
     printf '  IdentityFile %s\n  IdentitiesOnly yes\n' "$SECRETS/$name"
     printf '  UserKnownHostsFile %s\n\n' "$SECRETS/known_hosts"
   } >> "$host_cfg"
 
-  # Container (agent) never sees the private key: public IdentityFile selects it,
-  # IdentityAgent reaches the socket. A compromised agent can use but not steal it.
   {
     printf 'Host %s\n  HostName %s\n  User git\n' "$name" "$host"
-    printf '  IdentityFile /data/.ssh/%s.pub\n  IdentitiesOnly yes\n' "$name"
-    printf '  IdentityAgent /run/opencode/ssh-agent.sock\n'
+    printf '  IdentityFile /data/.ssh/%s\n  IdentitiesOnly yes\n' "$name"
     printf '  UserKnownHostsFile /data/.ssh/known_hosts\n\n'
   } >> "$cont_cfg"
 done
