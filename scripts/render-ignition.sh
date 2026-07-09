@@ -4,15 +4,10 @@
 # Usage:
 #   scripts/render-ignition.sh [local|do|all]   (default: local)
 #
-# All inputs come from ./deploy.env (copied from deploy.env.example):
+# Inputs come from ./deploy.env; pre-set env vars win (used by test-render.sh):
 #   - SSH_AUTHORIZED_KEY   your SSH PUBLIC key, baked into the core user
 #   - WG_BOOTSTRAP_PUBKEY  your device's WireGuard PUBLIC key (bootstrap peer)
 #   - WG_BOOTSTRAP_IP      that peer's VPN IP (e.g. 10.44.0.2)
-# Values already present in the environment (e.g. set by test-render.sh) win and
-# are not overwritten by deploy.env.
-#
-# Each environment config is a small overlay (local.bu / digitalocean.bu) that
-# is deep-merged on top of the shared base.bu before being handed to Butane.
 #
 # Requires: podman, envsubst (gettext package)
 set -euo pipefail
@@ -23,8 +18,7 @@ BUTANE_DIR="${REPO_ROOT}/config/butane"
 BUTANE_IMAGE="quay.io/coreos/butane:release"
 YQ_IMAGE="docker.io/mikefarah/yq"
 
-# Source ./deploy.env once (only when something we need is missing). Pre-set env
-# vars take precedence, so this is a no-op when the caller already provided them.
+# Source ./deploy.env only when a needed var is missing.
 require_deploy_env() {
   if [[ ! -f "$DEPLOY_ENV" ]]; then
     echo "ERROR: ${DEPLOY_ENV} not found." >&2
@@ -35,7 +29,7 @@ require_deploy_env() {
   set -a; source "$DEPLOY_ENV"; set +a
 }
 
-# ── Resolve SSH public key from deploy.env (pre-set env wins, e.g. tests) ─────
+# ── SSH public key ─────────────────────────────────────────────────────────
 
 if [[ -z "${SSH_AUTHORIZED_KEY:-}" ]]; then
   require_deploy_env
@@ -53,9 +47,8 @@ export SSH_AUTHORIZED_KEY
 export GIT_USER_NAME="${GIT_USER_NAME:-}"
 export GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
-# ── Resolve WireGuard bootstrap peer ─────────────────────────────────────────
-# Baked into Ignition as peer #0 so the tunnel is up before SSH exists. Honors
-# pre-set env vars (used by test-render); else reads ./deploy.env.
+# ── WireGuard bootstrap peer ────────────────────────────────────────────────
+# Baked into Ignition as peer #0 so the tunnel is up before SSH exists.
 resolve_bootstrap_peer() {
   if [[ -z "${WG_BOOTSTRAP_PUBKEY:-}" || -z "${WG_BOOTSTRAP_IP:-}" ]]; then
     require_deploy_env
@@ -75,9 +68,8 @@ resolve_bootstrap_peer() {
 
 # ── Render one Butane config ─────────────────────────────────────────────────
 
-# render_one <overlay-filename> <dst>
-# Deep-merges base.bu + overlay (arrays append via *+), substitutes the SSH key,
-# then compiles to Ignition JSON with Butane --strict.
+# Deep-merge base.bu + overlay (arrays append via *+), substitute vars, compile
+# to Ignition with Butane --strict.
 render_one() {
   local overlay="$1"
   local dst="$2"

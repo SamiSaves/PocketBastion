@@ -14,13 +14,11 @@ Environment=XDG_DATA_HOME=/data
 Environment=XDG_CONFIG_HOME=/data/config
 # HOME so git/ssh find /data/.gitconfig and /data/.ssh (written by git-setup.sh).
 Environment=HOME=/data
-# Mount repositories so OpenCode can work on them.
 Volume=/mnt/state/repos:/repos:Z
 # Start in /repos so OpenCode's project picker defaults to the cloned repos.
 WorkingDir=/repos
-# Provider API keys + OPENCODE_SERVER_PASSWORD come from the state disk,
-# never from git. The file is pre-created (empty) by state-dirs.service
-# so the server starts for the VPN-only smoke test before creds are set.
+# Provider API keys + OPENCODE_SERVER_PASSWORD live on the state disk, never git.
+# Pre-created empty by state-dirs.service so the server starts before creds exist.
 EnvironmentFile=/mnt/state/secrets/opencode.env
 Exec=serve --hostname 0.0.0.0 --port 4096
 

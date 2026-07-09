@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
-# test-render.sh — render both environments from base.bu + overlay and assert
-# each one got the right content.
-#
-# The merge itself (base.bu *+ overlay) is validated by `butane --strict` inside
-# render-ignition.sh; these grep assertions are the regression guard that catches
-# a shared block accidentally landing in only one environment (the exact bug that
-# left DigitalOcean stale before the base/overlay split).
-#
-# Notes on what is greppable in the rendered Ignition JSON:
-#   - storage file *paths* and systemd unit *names/contents* are plaintext
-#   - storage file *contents* are data-URL encoded, so we assert on paths, not
-#     on inline file bodies.
+# test-render.sh — render both environments and assert each got the right blocks.
+# Regression guard: catches a shared block landing in only one environment.
+# Assert on file paths + unit names (plaintext); file contents are data-URL encoded.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

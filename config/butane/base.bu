@@ -14,15 +14,12 @@ version: 1.5.0
 # entries (hostname, root disk device, format-on-first-boot) in overlays.
 passwd:
   users:
-    # The core user (UID 1000) owns the rootless Quadlet containers. Its SSH key
-    # is injected at render time; sshd runs but the firewall restricts it to the
-    # WireGuard interface (firewall-setup.sh) — identical on local and DO.
+    # The core user (UID 1000) owns the rootless Quadlet containers; SSH key
+    # injected at render time.
     #
-    # password_hash is a KNOWN, PUBLIC default ("space-depend-south") used ONLY
-    # for break-glass console login — the serial console (local) or DO's web
-    # console. It is NOT a network credential: sshd is key-only + WireGuard-only,
-    # so this password can never be used over the internet. Change it the first
-    # time you log in on the console (the README documents this step).
+    # password_hash is a PUBLIC default for break-glass console login only
+    # (serial / DO web console). Not a network credential: sshd is key-only +
+    # WG-only. Change it on first console login (see README).
     - name: core
       password_hash: "$6$uxZJIlbecCN0.R4V$uEOl0OUAciUTCoeuzZLooVYni9Mr9jHTfZRHDs8QaieEWp0o0kZJ7eviUFHeutibqDA/jAb/E/1DGDTtVuIQ51"
       ssh_authorized_keys:
@@ -107,9 +104,6 @@ storage:
           AllowedIPs = ${WG_BOOTSTRAP_IP}/32
 systemd:
   units:
-    # Unit bodies live in files/systemd/base/*.service (referenced via
-    # contents_local) so editors give them systemd syntax highlighting and
-    # `systemd-analyze verify` (run by scripts/validate.sh) can lint them.
     - name: state-dirs.service
       enabled: true
       contents_local: files/systemd/base/state-dirs.service
