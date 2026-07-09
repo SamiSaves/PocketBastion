@@ -234,22 +234,24 @@ make wg-add-peer PEER=phone IP=10.44.0.4 PUBKEY=<device public key>
 This appends to `/mnt/state/wireguard/peers.conf` (survives VM recreation) and
 restarts WireGuard.
 
-### GitHub access
+### Git access
 
 Each repo gets its own deploy key, generated on the VM and never leaving the
-state disk. Access is per-repo and explicit — adding a repo is a deliberate step:
+state disk. Works with any SSH git host (github.com, gitlab.com, self-hosted).
+Access is per-repo and explicit — adding a repo is a deliberate step:
 
 ```bash
-make repo-add REPO=git@github.com:owner/name.git          # read-only
-make repo-add REPO=git@github.com:owner/name.git WRITE=1  # allow push
+make repo-add REPO=git@github.com:owner/name.git
 make repo-list
-make repo-remove NAME=owner-name                          # keeps the checkout
-make repo-remove NAME=owner-name PURGE=1                  # also deletes it
+make repo-remove NAME=github-com-owner-name              # keeps the checkout
+make repo-remove NAME=github-com-owner-name PURGE=1      # also deletes it
 ```
 
-`repo-add` pauses while you register the printed public key on the repo
-(Settings → Deploy keys), then verifies by cloning. Inside the container git
-authenticates through an ssh-agent, so the private keys are never exposed to it.
+`repo-add` pauses while you register the printed public key on the repo (as a
+deploy key), then verifies by cloning. For hosts other than github.com it shows
+the server's SSH fingerprint for a one-time confirmation. Inside the container
+git authenticates through an ssh-agent, so the private keys are never exposed to
+it.
 
 ## Managing the VM
 

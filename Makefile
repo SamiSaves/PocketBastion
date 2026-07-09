@@ -67,13 +67,13 @@ wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10
 
 # ── GitHub repositories ──────────────────────────────────────────────────────
 
-repo-add: ## Grant the VM access to a repo  (REPO=git@github.com:owner/name.git [WRITE=1])
-	@scripts/repo-add.sh "$(REPO)" $(if $(filter 1 true yes,$(WRITE)),--write,)
+repo-add: ## Grant the VM access to a repo  (REPO=git@host:owner/name.git)
+	@scripts/repo-add.sh "$(REPO)"
 
 repo-list: ## List repos the VM has git access to
 	@scripts/repo-list.sh
 
-repo-remove: ## Revoke the VM's access to a repo  (NAME=owner-name [PURGE=1])
+repo-remove: ## Revoke the VM's access to a repo  (NAME=host-owner-name [PURGE=1])
 	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1 true yes,$(PURGE)),--purge,)
 
 # ── DigitalOcean (Terraform) ──────────────────────────────────────

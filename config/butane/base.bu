@@ -174,7 +174,7 @@ systemd:
         Environment=SSH_AUTH_SOCK=/run/opencode/ssh-agent.sock
         ExecStartPre=/usr/bin/rm -f /run/opencode/ssh-agent.sock
         ExecStart=/usr/bin/ssh-agent -D -a /run/opencode/ssh-agent.sock
-        ExecStartPost=/usr/bin/bash -c 'for m in /mnt/state/secrets/github/*.meta; do [ -e "$m" ] || continue; . "$m"; /usr/bin/ssh-add "/mnt/state/secrets/github/$owner-$repo" || true; done'
+        ExecStartPost=/usr/bin/bash -c 'for m in /mnt/state/secrets/git/*.meta; do [ -e "$m" ] || continue; . "$m"; /usr/bin/ssh-add "/mnt/state/secrets/git/$name" || true; done'
         Restart=always
         RestartSec=5
 
