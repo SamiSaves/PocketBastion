@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=ghcr.io/anomalyco/opencode:latest
+Image=opencode.build
 ContainerName=opencode
 # Bind ONLY to the WireGuard IP — never 0.0.0.0.
 PublishPort=10.44.0.1:4096:4096
@@ -16,6 +16,8 @@ Environment=XDG_CONFIG_HOME=/data/config
 Environment=HOME=/data
 # Mount repositories so OpenCode can work on them.
 Volume=/mnt/state/repos:/repos:Z
+# Start in /repos so OpenCode's project picker defaults to the cloned repos.
+WorkingDir=/repos
 # ssh-agent socket for git auth — deploy keys stay on the host, only the socket
 # is shared, so a compromised agent can use them but not exfiltrate them.
 Volume=/run/opencode:/run/opencode:z
