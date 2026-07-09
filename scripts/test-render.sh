@@ -36,6 +36,8 @@ for ign in "$LOCAL" "$DO"; do
   assert "/usr/local/sbin/wg-setup.sh"                            "$ign"
   assert "/usr/local/sbin/firewall-setup.sh"                      "$ign"
   assert "/etc/containers/systemd/users/1000/opencode.container"  "$ign"
+  assert "/etc/containers/systemd/users/1000/opencode.build"      "$ign"
+  assert "/etc/opencode/Containerfile"                            "$ign"
   assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign"
   assert "wg-quick@wg0.service"                                   "$ign"
   assert "state-dirs.service"                                     "$ign"

@@ -55,6 +55,17 @@ storage:
       mode: 0644
       contents:
         local: files/etc/containers/systemd/users/1000/opencode.container
+    # Quadlet .build unit + its Containerfile: builds a Debian/glibc OpenCode
+    # image on the box (the official image is Alpine/musl, which breaks the
+    # terminal). opencode.container references this via Image=opencode.build.
+    - path: /etc/containers/systemd/users/1000/opencode.build
+      mode: 0644
+      contents:
+        local: files/etc/containers/systemd/users/1000/opencode.build
+    - path: /etc/opencode/Containerfile
+      mode: 0644
+      contents:
+        local: files/etc/opencode/Containerfile
     - path: /usr/local/sbin/wg-setup.sh
       mode: 0750
       contents:

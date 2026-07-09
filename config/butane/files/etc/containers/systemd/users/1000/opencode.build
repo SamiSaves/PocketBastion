@@ -1,0 +1,12 @@
+# Builds the custom OpenCode image (Debian/glibc) from /etc/opencode/Containerfile.
+# Referenced by opencode.container via `Image=opencode.build`, which makes systemd
+# run this build before the container starts (and rebuild after a VM rebuild).
+[Unit]
+Description=Build the OpenCode container image
+After=network-online.target
+Wants=network-online.target
+
+[Build]
+ImageTag=localhost/opencode:latest
+File=/etc/opencode/Containerfile
+SetWorkingDirectory=/etc/opencode
