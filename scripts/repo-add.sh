@@ -101,9 +101,11 @@ case "$HOST" in
 esac
 
 # Phase 2: pin the host key, regenerate config, verify by cloning.
-"${SSH[@]}" 'bash -s' -- "$OWNER" "$REPO" "$NAME" "$HOSTKEY" <<'REMOTE'
+# HOSTKEY has spaces; ssh flattens remote args, so pass it base64-encoded.
+HOSTKEY_B64=$(printf '%s' "$HOSTKEY" | base64 | tr -d '\n')
+"${SSH[@]}" 'bash -s' -- "$OWNER" "$REPO" "$NAME" "$HOSTKEY_B64" <<'REMOTE'
 set -euo pipefail
-owner="$1"; repo="$2"; name="$3"; hostkey="$4"
+owner="$1"; repo="$2"; name="$3"; hostkey=$(printf '%s' "$4" | base64 -d)
 SECRETS=/mnt/state/secrets/git
 KH="$SECRETS/known_hosts"
 touch "$KH"
