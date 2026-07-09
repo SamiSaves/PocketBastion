@@ -26,7 +26,10 @@ require_deploy_env() {
     echo "         cp deploy.env.example deploy.env" >&2
     exit 1
   fi
-  set -a; source "$DEPLOY_ENV"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  source "$DEPLOY_ENV"
+  set +a
 }
 
 # ── SSH public key ─────────────────────────────────────────────────────────
@@ -75,6 +78,7 @@ render_one() {
   local dst="$2"
   echo "Rendering base.bu + ${overlay} -> $dst"
   mkdir -p "$(dirname "$dst")"
+  # shellcheck disable=SC2016  # envsubst needs the literal ${VAR} names
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
     | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL}' \

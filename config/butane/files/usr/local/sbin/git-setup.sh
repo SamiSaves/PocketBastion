@@ -26,7 +26,7 @@ cont_cfg="$DATA/.ssh/config"
 
 shopt -s nullglob
 for meta in "$SECRETS"/*.meta; do
-  host= owner= repo= name= url= verified=
+  host='' name=''
   # shellcheck disable=SC1090
   . "$meta"
   # The container gets the deploy key directly: a per-repo key is a smaller blast
