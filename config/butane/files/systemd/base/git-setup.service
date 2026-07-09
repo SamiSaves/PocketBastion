@@ -1,0 +1,12 @@
+[Unit]
+Description=Render git/ssh config from deploy keys on the state disk
+After=var-mnt-state.mount state-dirs.service
+Requires=state-dirs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/git-setup.sh
+
+[Install]
+WantedBy=multi-user.target

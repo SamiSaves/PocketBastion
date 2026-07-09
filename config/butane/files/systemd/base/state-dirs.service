@@ -1,0 +1,36 @@
+[Unit]
+Description=Create required directories on state disk
+After=var-mnt-state.mount
+Requires=var-mnt-state.mount
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mkdir -p \
+  /mnt/state/repos \
+  /mnt/state/opencode \
+  /mnt/state/npm-cache \
+  /mnt/state/pnpm-store \
+  /mnt/state/wireguard \
+  /mnt/state/secrets
+# System-owned dir (used by the root wg-setup service).
+ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard
+# Rootless-container dirs must be owned by the core user (UID 1000),
+# since the OpenCode/game containers run rootless as core and need to
+# read/write their data, repos, caches, and secrets.
+ExecStart=/usr/bin/chown 1000:1000 \
+  /mnt/state/repos \
+  /mnt/state/opencode \
+  /mnt/state/npm-cache \
+  /mnt/state/pnpm-store \
+  /mnt/state/secrets
+ExecStart=/usr/bin/chmod 700 /mnt/state/secrets
+# Pre-create the OpenCode env file (owned by core) so its container's
+# --env-file always resolves (Quadlet EnvironmentFile has no optional
+# variant). Empty is fine until provider credentials are added.
+ExecStart=/usr/bin/touch /mnt/state/secrets/opencode.env
+ExecStart=/usr/bin/chown 1000:1000 /mnt/state/secrets/opencode.env
+ExecStart=/usr/bin/chmod 600 /mnt/state/secrets/opencode.env
+
+[Install]
+WantedBy=multi-user.target

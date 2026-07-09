@@ -107,99 +107,25 @@ storage:
           AllowedIPs = ${WG_BOOTSTRAP_IP}/32
 systemd:
   units:
+    # Unit bodies live in files/systemd/base/*.service (referenced via
+    # contents_local) so editors give them systemd syntax highlighting and
+    # `systemd-analyze verify` (run by scripts/validate.sh) can lint them.
     - name: state-dirs.service
       enabled: true
-      contents: |
-        [Unit]
-        Description=Create required directories on state disk
-        After=var-mnt-state.mount
-        Requires=var-mnt-state.mount
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/usr/bin/mkdir -p \
-          /mnt/state/repos \
-          /mnt/state/opencode \
-          /mnt/state/npm-cache \
-          /mnt/state/pnpm-store \
-          /mnt/state/wireguard \
-          /mnt/state/secrets
-        # System-owned dir (used by the root wg-setup service).
-        ExecStart=/usr/bin/chmod 700 /mnt/state/wireguard
-        # Rootless-container dirs must be owned by the core user (UID 1000),
-        # since the OpenCode/game containers run rootless as core and need to
-        # read/write their data, repos, caches, and secrets.
-        ExecStart=/usr/bin/chown 1000:1000 \
-          /mnt/state/repos \
-          /mnt/state/opencode \
-          /mnt/state/npm-cache \
-          /mnt/state/pnpm-store \
-          /mnt/state/secrets
-        ExecStart=/usr/bin/chmod 700 /mnt/state/secrets
-        # Pre-create the OpenCode env file (owned by core) so its container's
-        # --env-file always resolves (Quadlet EnvironmentFile has no optional
-        # variant). Empty is fine until provider credentials are added.
-        ExecStart=/usr/bin/touch /mnt/state/secrets/opencode.env
-        ExecStart=/usr/bin/chown 1000:1000 /mnt/state/secrets/opencode.env
-        ExecStart=/usr/bin/chmod 600 /mnt/state/secrets/opencode.env
-
-        [Install]
-        WantedBy=multi-user.target
+      contents_local: files/systemd/base/state-dirs.service
     - name: git-setup.service
       enabled: true
-      contents: |
-        [Unit]
-        Description=Render git/ssh config from deploy keys on the state disk
-        After=var-mnt-state.mount state-dirs.service
-        Requires=state-dirs.service
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/usr/local/sbin/git-setup.sh
-
-        [Install]
-        WantedBy=multi-user.target
+      contents_local: files/systemd/base/git-setup.service
     # Ordered after the state mount (to read the persistent toggle override) and
     # before WireGuard (so the UDP port is already open when the tunnel starts).
     - name: firewall.service
       enabled: true
-      contents: |
-        [Unit]
-        Description=Render and apply nftables firewall rules
-        After=var-mnt-state.mount state-dirs.service
-        Requires=state-dirs.service
-        Before=wg-quick@wg0.service
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/usr/local/sbin/firewall-setup.sh
-
-        [Install]
-        WantedBy=multi-user.target
+      contents_local: files/systemd/base/firewall.service
     - name: wg-setup.service
       enabled: true
-      contents: |
-        [Unit]
-        Description=Generate WireGuard server keys and render wg0.conf
-        After=var-mnt-state.mount state-dirs.service network.target
-        Requires=var-mnt-state.mount state-dirs.service
-        Before=wg-quick@wg0.service
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/usr/local/sbin/wg-setup.sh
-
-        [Install]
-        WantedBy=multi-user.target
+      contents_local: files/systemd/base/wg-setup.service
     - name: wg-quick@wg0.service
       enabled: true
       dropins:
         - name: after-wg-setup.conf
-          contents: |
-            [Unit]
-            After=wg-setup.service
-            Requires=wg-setup.service
+          contents_local: files/systemd/base/wg-quick@wg0.service.d/after-wg-setup.conf

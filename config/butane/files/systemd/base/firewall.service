@@ -1,0 +1,13 @@
+[Unit]
+Description=Render and apply nftables firewall rules
+After=var-mnt-state.mount state-dirs.service
+Requires=state-dirs.service
+Before=wg-quick@wg0.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/firewall-setup.sh
+
+[Install]
+WantedBy=multi-user.target

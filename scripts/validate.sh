@@ -23,6 +23,33 @@ if check shellcheck; then
 fi
 
 echo ""
+echo "=== systemd-analyze verify ==="
+if check systemd-analyze; then
+  UNIT_DIR="$ROOT/config/butane/files/systemd"
+  # Verify base + one overlay at a time so cross-unit references (e.g.
+  # var-mnt-state.mount) resolve. The two overlays each define their own
+  # var-mnt-state.mount, so they cannot be loaded together.
+  #
+  # We only fail on unit-syntax errors (unknown directives/sections). Missing
+  # ExecStart binaries and missing referenced units are expected here because
+  # those live on the VM, not this laptop, so that noise is ignored.
+  for env in local digitalocean; do
+    mapfile -t units < <(find "$UNIT_DIR/base" "$UNIT_DIR/$env" -type f \
+      \( -name '*.service' -o -name '*.mount' \))
+    out="$(systemd-analyze verify "${units[@]}" 2>&1 || true)"
+    bad="$(printf '%s\n' "$out" | grep -E \
+      'Unknown key name|Unknown section|Unknown lvalue|Failed to parse|assignment outside of section' || true)"
+    if [[ -n "$bad" ]]; then
+      echo "  [$env] unit syntax errors:"
+      printf '%s\n' "$bad" | sed 's/^/    /'
+      ERRORS=$((ERRORS + 1))
+    else
+      echo "  [$env] OK"
+    fi
+  done
+fi
+
+echo ""
 echo "=== butane merge + render + per-env assertions ==="
 if check podman; then
   if bash "$ROOT/scripts/test-render.sh"; then

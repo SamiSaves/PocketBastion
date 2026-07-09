@@ -1,0 +1,13 @@
+[Unit]
+Description=Generate WireGuard server keys and render wg0.conf
+After=var-mnt-state.mount state-dirs.service network.target
+Requires=var-mnt-state.mount state-dirs.service
+Before=wg-quick@wg0.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/wg-setup.sh
+
+[Install]
+WantedBy=multi-user.target
