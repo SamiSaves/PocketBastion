@@ -36,6 +36,7 @@ for ign in "$LOCAL" "$DO"; do
   assert "git-setup.service"                                      "$ign"
   assert "/etc/opencode/gitconfig"                                "$ign"
   # Break-glass console login: default password hash baked into the core user.
+  # shellcheck disable=SC2016
   assert '\$6\$uxZJIlbecCN0'                                     "$ign"
 done
 
