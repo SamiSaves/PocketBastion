@@ -299,3 +299,6 @@ make local-wipe-state   # permanently delete the state disk (DATA LOSS)
 - Tests (and validation)
 - Small security audit
 - Make core os password configurable
+- Consider DNS for VM
+- Conisder DNS to recover wireguard automatically from a droplet ip change
+- Consider custom web UI for managing the server
