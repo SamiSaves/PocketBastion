@@ -11,12 +11,6 @@
 #
 # Appends a [Peer] block to /mnt/state/wireguard/peers.conf on the VM
 # (persists across VM recreations), then restarts WireGuard.
-#
-# VPN address assignments:
-#   server:  10.44.0.1
-#   laptop:  10.44.0.2
-#   desktop: 10.44.0.3
-#   phone:   10.44.0.4
 set -euo pipefail
 
 PEER="${PEER:-}"

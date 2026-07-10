@@ -57,7 +57,7 @@ Fill in two **public** keys (private keys never enter this repo):
 ```bash
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"         # log in over the tunnel
 WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # seeds VPN peer #0, up before SSH
-WG_BOOTSTRAP_IP=10.44.0.2                                  # leave unless changing the address plan
+WG_BOOTSTRAP_IP=10.44.0.2                                  # this device's VPN address (unique in 10.44.0.0/24)
 ```
 
 <details>
@@ -219,9 +219,8 @@ The UI is then reachable at `http://10.44.0.1:4096` over the VPN.
 
 ### Adding more devices
 
-Address plan: server `10.44.0.1`, laptop `.2`, desktop `.3`, phone `.4`.
-
-For each new device, generate its keypair on the device (WireGuard app, or
+Give each device a unique address in `10.44.0.0/24` (the server is `.1`) and a
+name to identify it. Generate its keypair on the device (WireGuard app, or
 `wg genkey`), then register only its **public** key on the server:
 
 ```bash
