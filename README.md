@@ -302,3 +302,11 @@ their keys); a DO Reserved IP avoids even that.
   ever shared. This repo never generates, stores, or transports a client private key.
 - GitHub credentials use narrowly scoped deploy keys, not personal access tokens.
 - All inbound traffic except WireGuard UDP is blocked by the firewall.
+
+## TODO
+
+- Run repository applicaitons in dev mode and make them accessible via browser through WireGuard
+- Improve security stance on opencode container, see if we can avoid it having so many secrets, such as git ssh keys
+- See if we could host vscode server for better development experience
+- Tests (and validation)
+- Small security audit
