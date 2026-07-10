@@ -314,3 +314,4 @@ their keys); a DO Reserved IP avoids even that.
 - See if we could host vscode server for better development experience
 - Tests (and validation)
 - Small security audit
+- Make core os password configurable
