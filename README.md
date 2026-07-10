@@ -12,28 +12,31 @@ repos, OpenCode sessions, caches and configs survive a rebuild.
 All services (SSH, the OpenCode UI, the dev server) are reachable **only**
 through the WireGuard tunnel. The one break-glass path is the serial console.
 
-## Getting started (local)
+## Getting started
 
-The local VM is WireGuard-only, exactly like the cloud one. That means your
-device's VPN public key has to be baked into the image **before** the VM is
-created, so the tunnel is up the moment it boots. The order below reflects that.
+The server is WireGuard-only from first boot, so your device's WireGuard public
+key is baked into the image **before** the VM exists. The steps follow that order.
 
-### 1. Host prerequisites
+### 1. Prerequisites
 
-Check for the required tools and libvirt/kvm group membership:
-
-```bash
-./scripts/local/prereqs.sh
-```
-
-The script prints the exact install command if anything is missing. Then do the
-one-time libvirt setup (creates the storage pool):
+Install [Terraform](https://developer.hashicorp.com/terraform/install) and export
+your DigitalOcean API token:
 
 ```bash
-./scripts/local/setup.sh
+export TF_VAR_do_token=<your DigitalOcean API token>
 ```
 
-Download the Fedora CoreOS QEMU image and place it where the VM expects it:
+<details>
+<summary>Local (KVM/libvirt) instead?</summary>
+
+Check tools and libvirt/kvm group membership, then do the one-time setup:
+
+```bash
+./scripts/local/prereqs.sh   # prints the install command if anything is missing
+./scripts/local/setup.sh     # creates the libvirt storage pool
+```
+
+Download the Fedora CoreOS QEMU image where the VM expects it:
 
 ```bash
 # https://fedoraproject.org/coreos/download?stream=stable&arch=x86_64
@@ -41,27 +44,20 @@ Download the Fedora CoreOS QEMU image and place it where the VM expects it:
 xz -d fedora-coreos-*.qcow2.xz
 sudo mv fedora-coreos-*.qcow2 /var/lib/libvirt/images/fedora-coreos-44.qcow2
 ```
+</details>
 
 ### 2. Configure `deploy.env`
-
-Everything the build needs — your SSH public key and your WireGuard public key —
-goes into a single `deploy.env` file. There's no `secrets/` folder and no magic
-defaults: whatever you put here is exactly what gets baked in. Both values are
-**public** keys; private keys never enter this repo.
 
 ```bash
 cp deploy.env.example deploy.env
 ```
 
-Now open `deploy.env` and fill in the two values below.
-
-#### SSH public key
-
-Paste your SSH **public** key into `SSH_AUTHORIZED_KEY` — this is what lets you
-log in over the tunnel:
+Fill in two **public** keys (private keys never enter this repo):
 
 ```bash
-SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"
+SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"         # log in over the tunnel
+WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # seeds VPN peer #0, up before SSH
+WG_BOOTSTRAP_IP=10.44.0.2                                  # leave unless changing the address plan
 ```
 
 <details>
@@ -70,37 +66,26 @@ SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"
 Create a dedicated key so it's easy to identify and revoke later:
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/opencode -C opencode
+ssh-keygen -t ed25519 -f ~/.ssh/pocketbastion -C pocketbastion
 ```
 
-This writes the private key to `~/.ssh/opencode` (keep it) and the public key to
-`~/.ssh/opencode.pub`. Print the public half to paste into `deploy.env`:
+This writes the private key to `~/.ssh/pocketbastion` (keep it) and the public key to
+`~/.ssh/pocketbastion.pub`. Print the public half to paste into `deploy.env`:
 
 ```bash
-cat ~/.ssh/opencode.pub
+cat ~/.ssh/pocketbastion.pub
 ```
 
 To have SSH use this key automatically, add to `~/.ssh/config`:
 
 ```
-Host opencode
+Host pocketbastion
     HostName     10.44.0.1
     User         core
-    IdentityFile ~/.ssh/opencode
+    IdentityFile ~/.ssh/pocketbastion
 ```
 
 </details>
-
-#### WireGuard public key
-
-Paste your device's WireGuard **public** key into `WG_BOOTSTRAP_PUBKEY`. This
-seeds peer #0 so the VPN tunnel is up the moment the VM boots — before SSH even
-exists. Leave `WG_BOOTSTRAP_IP` at `.2` unless you're changing the address plan:
-
-```bash
-WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>
-WG_BOOTSTRAP_IP=10.44.0.2
-```
 
 <details>
 <summary>Don't have a WireGuard keypair? How to create one</summary>
@@ -111,57 +96,64 @@ There's no standard per-user WireGuard directory like `~/.ssh`, and
 ```bash
 mkdir -p ~/.config/wireguard && chmod 700 ~/.config/wireguard
 umask 077
-wg genkey | tee ~/.config/wireguard/opencode.key | wg pubkey \
-  > ~/.config/wireguard/opencode.pub
-cat ~/.config/wireguard/opencode.pub   # the PUBLIC key to paste above
+wg genkey | tee ~/.config/wireguard/pocketbastion.key | wg pubkey \
+  > ~/.config/wireguard/pocketbastion.pub
+cat ~/.config/wireguard/pocketbastion.pub   # the PUBLIC key to paste above
 ```
 
-`opencode.key` is your private key — it stays on this machine and you'll use it
-in step 4. `opencode.pub` is the public key you paste into `deploy.env`.
+`pocketbastion.key` is your private key — it stays on this machine and you'll use it
+in step 4. `pocketbastion.pub` is the public key you paste into `deploy.env`.
 
 </details>
 
-### 3. Create the VM
-
-Renders the Ignition config and boots the VM:
+### 3. Create the server
 
 ```bash
-make local-up
+make ignition-do
+make tf-apply          # uses ./deploy.tfvars
 ```
+
+<details>
+<summary>Local instead?</summary>
+
+```bash
+make local-up          # renders Ignition and boots the KVM VM
+```
+</details>
 
 ### 4. Bring up your tunnel
 
-SSH is tunnel-only, so you need the server's public key first — and the tunnel
-isn't up yet on first boot. Get it from the console, which is the only pre-tunnel
-way in (this is also your break-glass path if WireGuard ever fails):
-
-```bash
-make local-console
-```
-
-Log in as `core` with the public default password **`space-depend-south`**, then
-**change it right away** with `passwd` — it's a known default committed in the
-repo, so treat your first login as the moment to replace it. Then read the
-server's public key:
+The tunnel isn't up yet, so get the server's public key from DO's web **Droplet
+Console** (also your break-glass path if WireGuard ever fails). Log in as `core`
+with the default password **`space-depend-south`**, change it, then read the key:
 
 ```bash
 passwd                                          # set your own password
 sudo cat /mnt/state/wireguard/server_public.key
-# Ctrl-] to exit the console
 ```
 
-> The default password is only ever usable on the console (local serial or, on
-> DigitalOcean, the web console behind your DO account). SSH stays key-only and
-> WireGuard-only, so this password is never reachable from the internet.
+> The default password only works on the console (behind your DO account login).
+> SSH stays key-only and WireGuard-only, so it's never reachable from the internet.
+
+<details>
+<summary>Local instead?</summary>
+
+Use the serial console:
+
+```bash
+make local-console
+# then: passwd; sudo cat /mnt/state/wireguard/server_public.key; Ctrl-] to exit
+```
+</details>
 
 Create the tunnel config next to your keys as
-`~/.config/wireguard/opencode.conf`, pasting your private key
-(`cat ~/.config/wireguard/opencode.key`) and the server public key:
+`~/.config/wireguard/pocketbastion.conf`, pasting your private key
+(`cat ~/.config/wireguard/pocketbastion.key`) and the server public key:
 
 ```ini
 [Interface]
 Address    = 10.44.0.2/24
-PrivateKey = <contents of ~/.config/wireguard/opencode.key>
+PrivateKey = <contents of ~/.config/wireguard/pocketbastion.key>
 
 [Peer]
 PublicKey           = <server public key from the console>
@@ -170,13 +162,14 @@ AllowedIPs          = 10.44.0.0/24
 PersistentKeepalive = 25
 ```
 
-Use `make local-ip` for the VM's LAN IP (the `Endpoint`). Then bring the tunnel
-up by pointing `wg-quick` at that file — the interface name comes from the
-filename (`opencode`). Only this step needs root; the config stays in your home:
+The `Endpoint` is the droplet's public IP: `cd terraform/digitalocean && terraform
+output wireguard_endpoint` (for local, `make local-ip`). Then bring the tunnel up
+by pointing `wg-quick` at the file — the interface name comes from the filename
+(`pocketbastion`). Only this step needs root; the config stays in your home:
 
 ```bash
-sudo wg-quick up ~/.config/wireguard/opencode.conf
-# down again with: sudo wg-quick down ~/.config/wireguard/opencode.conf
+sudo wg-quick up ~/.config/wireguard/pocketbastion.conf
+# down again with: sudo wg-quick down ~/.config/wireguard/pocketbastion.conf
 ```
 
 Once the tunnel is up you can fetch the server key over SSH next time instead of
@@ -191,10 +184,10 @@ make wg-server-pubkey
 SSH in over the tunnel:
 
 ```bash
-make local-ssh          # ssh core@10.44.0.1
+ssh core@10.44.0.1      # same address on both envs; `make local-ssh` wraps this for local
 ```
 
-Everything below lives on `/mnt/state`, so you only do it once — it survives VM
+Everything below lives on `/mnt/state`, so you only do it once — it survives
 teardown.
 
 **Set the OpenCode server password** (read by the container from
@@ -254,44 +247,36 @@ make repo-remove NAME=github-com-owner-name PURGE=1      # also deletes it
 `repo-add` pauses while you register the printed public key on the repo (as a
 deploy key), then verifies by cloning. For hosts other than github.com it shows
 the server's SSH fingerprint for a one-time confirmation. The container gets the
-per-repo deploy key directly — a leaked key grants write to only that one repo,
-a smaller blast radius than the API keys already in the container.
+per-repo deploy key directly — a leaked key grants write to only that one repo.
 
-## Managing the VM
+## Managing the server
 
 ```bash
-make local-ssh          # SSH in over the tunnel
+make tf-plan            # preview droplet changes
+make tf-apply           # apply droplet changes (rebuilds reuse the state Volume)
+make wg-server-pubkey   # fetch the server WireGuard key over the tunnel
+make validate           # validate scripts and configs
+make help               # full list of targets
+```
+
+The OS is disposable: destroy and recreate the droplet and the state Volume
+(keys, peers, repos) is preserved (`prevent_destroy`), so a rebuild reuses the
+same WireGuard identity. A rebuilt droplet gets a new public IP, so clients
+update their `Endpoint` (not their keys); a DO Reserved IP avoids even that. 
+As of now the core os password needs to be reset after each recreate.
+
+<details>
+<summary>Local VM management</summary>
+
+```bash
+make local-up           # create the VM
 make local-console      # serial console (break-glass, no tunnel needed)
 make local-ip           # print the VM's LAN IP
+make local-ssh          # SSH in over the tunnel
 make local-down         # destroy the VM, keep the state disk
 make local-wipe-state   # permanently delete the state disk (DATA LOSS)
-make validate           # validate scripts and configs
 ```
-
-Run `make help` for the full list of targets.
-
-## DigitalOcean
-
-The same config deploys to a droplet via Terraform. Set the bootstrap peer in
-`deploy.env` as above, export `TF_VAR_do_token`, then:
-
-```bash
-make ignition-do
-make tf-apply           # uses ./deploy.tfvars
-```
-
-Getting the server key and breaking glass work the same as local, via DO's web
-**Droplet Console**: log in as `core` with the default password
-`space-depend-south`, change it with `passwd`, then
-`sudo cat /mnt/state/wireguard/server_public.key`. That console sits behind your
-DigitalOcean account login, so the default password is never internet-reachable.
-
-Because SSH is WireGuard-only, the console is your only recovery path if the
-tunnel breaks. If that's not enough, the OS is disposable: destroy and recreate
-the droplet — the state Volume (keys, peers, repos) is preserved
-(`prevent_destroy`), so a rebuild reuses the same WireGuard identity. Note a
-rebuilt droplet gets a new public IP, so clients update their `Endpoint` (not
-their keys); a DO Reserved IP avoids even that.
+</details>
 
 ## Security notes
 
