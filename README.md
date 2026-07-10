@@ -1,11 +1,15 @@
-# opencode-server
+# PocketBastion
 
-A reproducible, disposable Fedora CoreOS dev server that runs the OpenCode web
-UI behind a WireGuard VPN. It runs locally first (KVM/libvirt) and on
-DigitalOcean from the same config. The OS is disposable; only `/mnt/state`
-(repos, OpenCode sessions, caches) survives a rebuild.
+> A remote, security-minded AI devbox.
 
-All services — SSH, the OpenCode UI, the dev server — are reachable **only**
+PocketBastion is a disposable, reproducible AI dev server. It runs the OpenCode
+web UI on Fedora CoreOS, locked entirely behind a WireGuard VPN so you can code
+from anywhere, including your phone, without exposing anything to the public
+internet. It runs on any platform, but this has been setup for DigitalOcean,
+it also runs locally wiht (KVM/libvirt). The OS is disposable, but `/mnt/state`
+repos, OpenCode sessions, caches and configs survive a rebuild.
+
+All services (SSH, the OpenCode UI, the dev server) are reachable **only**
 through the WireGuard tunnel. The one break-glass path is the serial console.
 
 ## Getting started (local)
