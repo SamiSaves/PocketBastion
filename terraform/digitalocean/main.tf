@@ -52,6 +52,21 @@ resource "digitalocean_volume_attachment" "state" {
   volume_id  = digitalocean_volume.state.id
 }
 
+# ── Project (groups resources in the DO console) ─────────────────────────────
+
+resource "digitalocean_project" "server" {
+  name        = var.project_name
+  description = "PocketBastion — remote, security-minded AI devbox"
+  purpose     = "Web Application"
+  environment = "Development"
+
+  # Only droplets and volumes are project-assignable; firewalls have no URN.
+  resources = [
+    digitalocean_droplet.server.urn,
+    digitalocean_volume.state.urn,
+  ]
+}
+
 # ── Networking ────────────────────────────────────────────────────────────────
 
 resource "digitalocean_firewall" "server" {

@@ -5,21 +5,23 @@ variable "do_token" {
 }
 
 variable "region" {
-  description = "DigitalOcean region slug."
+  description = "DigitalOcean region slug. Must support block storage volumes and match the CoreOS image's region."
   type        = string
-  default     = "fra1"
 }
 
 variable "droplet_name" {
   description = "Name for the droplet and related resources."
   type        = string
-  default     = "opencode-dev-server"
+}
+
+variable "project_name" {
+  description = "Name of the DigitalOcean project that groups the droplet and state volume."
+  type        = string
 }
 
 variable "droplet_size" {
   description = "Droplet size slug."
   type        = string
-  default     = "s-2vcpu-4gb"
 }
 
 variable "coreos_image_slug" {
@@ -37,5 +39,4 @@ variable "ssh_key_name" {
 variable "state_volume_size_gb" {
   description = "Size in GB of the persistent state volume."
   type        = number
-  default     = 20
 }

@@ -2,7 +2,7 @@
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
-        tf-plan tf-apply \
+        tf-plan tf-apply tf-destroy \
         harden-check \
         clean
 
@@ -84,3 +84,6 @@ tf-plan: ## Terraform plan for DigitalOcean (uses ./deploy.tfvars)
 
 tf-apply: ## Terraform apply for DigitalOcean (uses ./deploy.tfvars)
 	@cd $(TF_DIR) && terraform init -input=false && terraform apply -var-file="$(TFVARS)"
+
+tf-destroy: ## Terraform destroy for DigitalOcean (uses ./deploy.tfvars)
+	@cd $(TF_DIR) && terraform init -input=false && terraform destroy -var-file="$(TFVARS)"
