@@ -19,6 +19,11 @@ key is baked into the image **before** the VM exists. The steps follow that orde
 
 ### 1. Prerequisites
 
+**Set up your WireGuard tunnel first** — it's the prerequisite for everything
+else, and your public key is baked into the image before the VM exists. Follow
+[docs/wireguard.md](docs/wireguard.md) to create your keypair and tunnel config
+(you'll fill in the server's key and endpoint later, once the VM is up).
+
 Install [Terraform](https://developer.hashicorp.com/terraform/install) and export
 your DigitalOcean API token:
 
@@ -56,7 +61,7 @@ Fill in two **public** keys (private keys never enter this repo):
 
 ```bash
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"         # log in over the tunnel
-WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # seeds VPN peer #0, up before SSH
+WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # from docs/wireguard.md; seeds VPN peer #0
 WG_BOOTSTRAP_IP=10.44.0.2                                  # this device's VPN address (unique in 10.44.0.0/24)
 ```
 
@@ -84,25 +89,6 @@ Host pocketbastion
     User         core
     IdentityFile ~/.ssh/pocketbastion
 ```
-
-</details>
-
-<details>
-<summary>Don't have a WireGuard keypair? How to create one</summary>
-
-There's no standard per-user WireGuard directory like `~/.ssh`, and
-`/etc/wireguard` is root-owned — so keep your keys in your own config dir:
-
-```bash
-mkdir -p ~/.config/wireguard && chmod 700 ~/.config/wireguard
-umask 077
-wg genkey | tee ~/.config/wireguard/pocketbastion.key | wg pubkey \
-  > ~/.config/wireguard/pocketbastion.pub
-cat ~/.config/wireguard/pocketbastion.pub   # the PUBLIC key to paste above
-```
-
-`pocketbastion.key` is your private key — it stays on this machine and you'll use it
-in step 4. `pocketbastion.pub` is the public key you paste into `deploy.env`.
 
 </details>
 
@@ -146,38 +132,18 @@ make local-console
 ```
 </details>
 
-Create the tunnel config next to your keys as
-`~/.config/wireguard/pocketbastion.conf`, pasting your private key
-(`cat ~/.config/wireguard/pocketbastion.key`) and the server public key:
-
-```ini
-[Interface]
-Address    = 10.44.0.2/24
-PrivateKey = <contents of ~/.config/wireguard/pocketbastion.key>
-
-[Peer]
-PublicKey           = <server public key from the console>
-Endpoint            = <vm-ip>:51820
-AllowedIPs          = 10.44.0.0/24
-PersistentKeepalive = 25
-```
-
-The `Endpoint` is the droplet's public IP: `cd terraform/digitalocean && terraform
-output wireguard_endpoint` (for local, `make local-ip`). Then bring the tunnel up
-by pointing `wg-quick` at the file — the interface name comes from the filename
-(`pocketbastion`). Only this step needs root; the config stays in your home:
+Now fill the server public key and endpoint into the tunnel config you created in
+the prerequisites, then bring the tunnel up. The `Endpoint` is the droplet's
+public IP (`cd terraform/digitalocean && terraform output wireguard_endpoint`, or
+`make local-ip` for local). Full steps are in
+[docs/wireguard.md](docs/wireguard.md#3-fill-in-the-server-details-after-the-vm-exists):
 
 ```bash
 sudo wg-quick up ~/.config/wireguard/pocketbastion.conf
-# down again with: sudo wg-quick down ~/.config/wireguard/pocketbastion.conf
 ```
 
 Once the tunnel is up you can fetch the server key over SSH next time instead of
-the console:
-
-```bash
-make wg-server-pubkey
-```
+the console with `make wg-server-pubkey`.
 
 ### 5. Post-install setup
 
@@ -219,16 +185,14 @@ The UI is then reachable at `http://10.44.0.1:4096` over the VPN.
 
 ### Adding more devices
 
-Give each device a unique address in `10.44.0.0/24` (the server is `.1`) and a
-name to identify it. Generate its keypair on the device (WireGuard app, or
-`wg genkey`), then register only its **public** key on the server:
+Generate each device's keypair on the device, then register only its **public**
+key on the server:
 
 ```bash
 make wg-add-peer PEER=phone IP=10.44.0.4 PUBKEY=<device public key>
 ```
 
-This appends to `/mnt/state/wireguard/peers.conf` (survives VM recreation) and
-restarts WireGuard.
+See [docs/wireguard.md](docs/wireguard.md#adding-more-devices) for details.
 
 ### Git access
 
