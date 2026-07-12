@@ -13,11 +13,6 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-# ── Data sources ─────────────────────────────────────────────────────────────
-
-data "digitalocean_ssh_key" "default" {
-  name = var.ssh_key_name
-}
 
 # ── State volume (persistent across droplet rebuilds) ───────────────────────
 
@@ -41,12 +36,10 @@ resource "digitalocean_droplet" "server" {
   region    = var.region
   size      = var.droplet_size
   image     = var.coreos_image_slug
-  ssh_keys  = [data.digitalocean_ssh_key.default.id]
   user_data = file("${path.module}/../../config/ignition/digitalocean.ign")
 
   tags = ["opencode-dev-server", "coreos"]
 }
-
 resource "digitalocean_volume_attachment" "state" {
   droplet_id = digitalocean_droplet.server.id
   volume_id  = digitalocean_volume.state.id
