@@ -12,6 +12,7 @@ storage:
   files:
     - path: /etc/hostname
       mode: 0644
+      overwrite: true
       contents:
         inline: opencode-dev-server-do
 systemd:
