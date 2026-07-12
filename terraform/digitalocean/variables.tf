@@ -31,11 +31,6 @@ variable "coreos_image_slug" {
   # Example: "fedora-coreos-39-20231119.3.0"
 }
 
-variable "ssh_key_name" {
-  description = "Name of the SSH key registered in DigitalOcean (used for emergency console access only)."
-  type        = string
-}
-
 variable "state_volume_size_gb" {
   description = "Size in GB of the persistent state volume."
   type        = number
