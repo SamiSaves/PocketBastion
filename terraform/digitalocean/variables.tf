@@ -31,6 +31,11 @@ variable "coreos_image_slug" {
   # Example: "fedora-coreos-39-20231119.3.0"
 }
 
+variable "ssh_authorized_key" {
+  description = "SSH PUBLIC key to register in DigitalOcean and attach to the droplet. DO requires an SSH key at creation for password-less images (CoreOS). Same key baked into Ignition; supplied from deploy.env's SSH_AUTHORIZED_KEY via TF_VAR_ssh_authorized_key (the Makefile handles this)."
+  type        = string
+}
+
 variable "state_volume_size_gb" {
   description = "Size in GB of the persistent state volume."
   type        = number

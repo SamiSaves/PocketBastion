@@ -29,17 +29,28 @@ resource "digitalocean_volume" "state" {
   }
 }
 
-# ── Droplet ───────────────────────────────────────────────────────────────────
+# ── SSH key (DO requires one at creation for password-less CoreOS images) ────
+# Same public key baked into Ignition; supplied via TF_VAR_ssh_authorized_key
+# (the Makefile sources it from deploy.env's SSH_AUTHORIZED_KEY).
+
+resource "digitalocean_ssh_key" "core" {
+  name       = "${var.droplet_name}-key"
+  public_key = var.ssh_authorized_key
+}
+
+# ── Droplet ────────────────────────────────────────────────────────
 
 resource "digitalocean_droplet" "server" {
   name      = var.droplet_name
   region    = var.region
   size      = var.droplet_size
   image     = var.coreos_image_slug
+  ssh_keys  = [digitalocean_ssh_key.core.id]
   user_data = file("${path.module}/../../config/ignition/digitalocean.ign")
 
   tags = ["opencode-dev-server", "coreos"]
 }
+
 resource "digitalocean_volume_attachment" "state" {
   droplet_id = digitalocean_droplet.server.id
   volume_id  = digitalocean_volume.state.id

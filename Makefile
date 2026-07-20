@@ -10,6 +10,7 @@ BUTANE_IMAGE := quay.io/coreos/butane:release
 VM_NAME      := opencode-dev-server-local
 TF_DIR       := terraform/digitalocean
 TFVARS       := $(abspath deploy.tfvars)
+DEPLOY_ENV   := $(abspath deploy.env)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -79,11 +80,17 @@ repo-remove: ## Revoke the VM's access to a repo  (NAME=host-owner-name [PURGE=1
 # ── DigitalOcean (Terraform) ──────────────────────────────────────
 # Both read the root ./deploy.tfvars. Set TF_VAR_do_token in your env first.
 
-tf-plan: ## Terraform plan for DigitalOcean (uses ./deploy.tfvars)
-	@cd $(TF_DIR) && terraform init -input=false && terraform plan -var-file="$(TFVARS)"
+tf-plan: ## Terraform plan for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
+	@set -a; . "$(DEPLOY_ENV)"; set +a; \
+		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
+		cd $(TF_DIR) && terraform init -input=false && terraform plan -var-file="$(TFVARS)"
 
-tf-apply: ## Terraform apply for DigitalOcean (uses ./deploy.tfvars)
-	@cd $(TF_DIR) && terraform init -input=false && terraform apply -var-file="$(TFVARS)"
+tf-apply: ## Terraform apply for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
+	@set -a; . "$(DEPLOY_ENV)"; set +a; \
+		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
+		cd $(TF_DIR) && terraform init -input=false && terraform apply -var-file="$(TFVARS)"
 
-tf-destroy: ## Terraform destroy for DigitalOcean (uses ./deploy.tfvars)
-	@cd $(TF_DIR) && terraform init -input=false && terraform destroy -var-file="$(TFVARS)"
+tf-destroy: ## Terraform destroy for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
+	@set -a; . "$(DEPLOY_ENV)"; set +a; \
+		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
+		cd $(TF_DIR) && terraform init -input=false && terraform destroy -var-file="$(TFVARS)"
