@@ -6,7 +6,7 @@ Before=local-fs.target
 What=/dev/disk/by-label/state
 Where=/var/mnt/state
 Type=ext4
-Options=defaults,noatime
+Options=defaults,noatime,x-systemd.growfs
 
 [Install]
 WantedBy=local-fs.target
