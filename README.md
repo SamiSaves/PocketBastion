@@ -17,39 +17,11 @@ through the WireGuard tunnel. The one break-glass path is the serial console.
 The server is WireGuard-only from first boot, so your device's WireGuard public
 key is baked into the image **before** the VM exists. The steps follow that order.
 
-### 1. Prerequisites
+### 1. Set up WireGuard
 
-**Set up your WireGuard tunnel first** — it's the prerequisite for everything
-else, and your public key is baked into the image before the VM exists. Follow
-[docs/wireguard.md](docs/wireguard.md) to create your keypair and tunnel config
-(you'll fill in the server's key and endpoint later, once the VM is up).
-
-Install [Terraform](https://developer.hashicorp.com/terraform/install) and export
-your DigitalOcean API token:
-
-```bash
-export TF_VAR_do_token=<your DigitalOcean API token>
-```
-
-<details>
-<summary>Local (KVM/libvirt) instead?</summary>
-
-Check tools and libvirt/kvm group membership, then do the one-time setup:
-
-```bash
-./scripts/local/prereqs.sh   # prints the install command if anything is missing
-./scripts/local/setup.sh     # creates the libvirt storage pool
-```
-
-Download the Fedora CoreOS QEMU image where the VM expects it:
-
-```bash
-# https://fedoraproject.org/coreos/download?stream=stable&arch=x86_64
-# Bare Metal & Virtualized → QEMU (qcow2.xz)
-xz -d fedora-coreos-*.qcow2.xz
-sudo mv fedora-coreos-*.qcow2 /var/lib/libvirt/images/fedora-coreos-44.qcow2
-```
-</details>
+WireGuard is the prerequisite for everything else — your public key is baked into
+the image before the VM exists. Follow [docs/wireguard.md](docs/wireguard.md) to
+create your keypair and tunnel config.
 
 ### 2. Configure `deploy.env`
 
@@ -92,60 +64,15 @@ Host pocketbastion
 
 </details>
 
-### 3. Create the server
+### 3. Create your server & connect
 
-```bash
-make ignition-do
-make tf-apply          # uses ./deploy.tfvars
-```
+Follow the guide for your platform — each covers its prerequisites, creating the
+server, and connecting your tunnel:
 
-<details>
-<summary>Local instead?</summary>
+- [DigitalOcean](docs/digitalocean.md)
+- [Local (KVM/libvirt)](docs/local.md)
 
-```bash
-make local-up          # renders Ignition and boots the KVM VM
-```
-</details>
-
-### 4. Bring up your tunnel
-
-The tunnel isn't up yet, so get the server's public key from DO's web **Droplet
-Console** (also your break-glass path if WireGuard ever fails). Log in as `core`
-with the default password **`space-depend-south`**, change it, then read the key:
-
-```bash
-passwd                                          # set your own password
-sudo cat /mnt/state/wireguard/server_public.key
-```
-
-> The default password only works on the console (behind your DO account login).
-> SSH stays key-only and WireGuard-only, so it's never reachable from the internet.
-
-<details>
-<summary>Local instead?</summary>
-
-Use the serial console:
-
-```bash
-make local-console
-# then: passwd; sudo cat /mnt/state/wireguard/server_public.key; Ctrl-] to exit
-```
-</details>
-
-Now fill the server public key and endpoint into the tunnel config you created in
-the prerequisites, then bring the tunnel up. The `Endpoint` is the droplet's
-public IP (`cd terraform/digitalocean && terraform output wireguard_endpoint`, or
-`make local-ip` for local). Full steps are in
-[docs/wireguard.md](docs/wireguard.md#3-fill-in-the-server-details-after-the-vm-exists):
-
-```bash
-sudo wg-quick up ~/.config/wireguard/pocketbastion.conf
-```
-
-Once the tunnel is up you can fetch the server key over SSH next time instead of
-the console with `make wg-server-pubkey`.
-
-### 5. Post-install setup
+### 4. Post-install setup
 
 SSH in over the tunnel:
 
@@ -214,32 +141,15 @@ per-repo deploy key directly — a leaked key grants write to only that one repo
 
 ## Managing the server
 
+Platform lifecycle commands live in the platform guides
+([DigitalOcean](docs/digitalocean.md#managing-the-droplet),
+[Local](docs/local.md#managing-the-vm)). Common targets:
+
 ```bash
-make tf-plan            # preview droplet changes
-make tf-apply           # apply droplet changes (rebuilds reuse the state Volume)
 make wg-server-pubkey   # fetch the server WireGuard key over the tunnel
 make validate           # validate scripts and configs
 make help               # full list of targets
 ```
-
-The OS is disposable: destroy and recreate the droplet and the state Volume
-(keys, peers, repos) is preserved (`prevent_destroy`), so a rebuild reuses the
-same WireGuard identity. A rebuilt droplet gets a new public IP, so clients
-update their `Endpoint` (not their keys); a DO Reserved IP avoids even that. 
-As of now the core os password needs to be reset after each recreate.
-
-<details>
-<summary>Local VM management</summary>
-
-```bash
-make local-up           # create the VM
-make local-console      # serial console (break-glass, no tunnel needed)
-make local-ip           # print the VM's LAN IP
-make local-ssh          # SSH in over the tunnel
-make local-down         # destroy the VM, keep the state disk
-make local-wipe-state   # permanently delete the state disk (DATA LOSS)
-```
-</details>
 
 ## Security notes
 
