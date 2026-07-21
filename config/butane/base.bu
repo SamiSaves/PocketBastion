@@ -46,12 +46,15 @@ storage:
       mode: 0644
       contents:
         inline: ""
-    # Reachable ONLY over WireGuard: Podman publishes it on 10.44.0.1, so the
-    # normal/public network cannot reach it (the firewall also blocks non-wg0).
     - path: /etc/containers/systemd/users/1000/opencode.container
       mode: 0644
       contents:
         local: files/etc/containers/systemd/users/1000/opencode.container
+    - path: /etc/containers/systemd/users/1000/opencode.container.d/10-extra-ports.conf
+      mode: 0644
+      contents:
+        inline: |
+          [Container]${OPENCODE_EXTRA_PUBLISH}
     # Quadlet .build unit + its Containerfile: builds a Debian/glibc OpenCode
     # image on the box (the official image is Alpine/musl, which breaks the
     # terminal). opencode.container references this via Image=opencode.build.

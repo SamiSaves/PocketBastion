@@ -50,6 +50,17 @@ export SSH_AUTHORIZED_KEY
 export GIT_USER_NAME="${GIT_USER_NAME:-}"
 export GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
+# ── Extra OpenCode dev-server ports (optional; 4096/3000-3010/5173-5183 always) ─
+OPENCODE_EXTRA_PUBLISH=""
+for _port in ${OPENCODE_EXTRA_PORTS:-}; do
+  if [[ ! "$_port" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+    echo "ERROR: OPENCODE_EXTRA_PORTS entry '$_port' must be a port or range (e.g. 8000 or 9000-9010)." >&2
+    exit 1
+  fi
+  OPENCODE_EXTRA_PUBLISH+=$'\n          PublishPort=10.44.0.1:'"${_port}:${_port}"
+done
+export OPENCODE_EXTRA_PUBLISH
+
 # ── WireGuard bootstrap peer ────────────────────────────────────────────────
 # Baked into Ignition as peer #0 so the tunnel is up before SSH exists.
 resolve_bootstrap_peer() {
@@ -81,7 +92,7 @@ render_one() {
   # shellcheck disable=SC2016  # envsubst needs the literal ${VAR} names
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
-    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL}' \
+    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL} ${OPENCODE_EXTRA_PUBLISH}' \
     | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
         --pretty --strict --files-dir /w \
     > "$dst"
