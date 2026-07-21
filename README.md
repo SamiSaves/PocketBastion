@@ -110,6 +110,23 @@ systemctl --user restart opencode.service
 
 The UI is then reachable at `http://10.44.0.1:4096` over the VPN.
 
+### Running a dev server
+
+Only ports you list are forwarded from the tunnel into OpenCode's (untrusted,
+network-isolated) container. Add them to `OPENCODE_EXTRA_PORTS` in `deploy.env`
+(space-separated ports/ranges), then re-render and redeploy:
+
+```bash
+OPENCODE_EXTRA_PORTS="3000 5173 8000-8010"
+```
+
+Start the server bound to `0.0.0.0` (not `10.44.0.1`, which the container can't
+see); it's then reachable at `http://10.44.0.1:<port>` over the VPN:
+
+```bash
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
 ### Adding more devices
 
 Generate each device's keypair on the device, then register only its **public**

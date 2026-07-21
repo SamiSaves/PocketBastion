@@ -6,19 +6,13 @@ Wants=network-online.target
 [Container]
 Image=opencode.build
 ContainerName=opencode
-# Bind ONLY to the WireGuard IP — never 0.0.0.0.
 PublishPort=10.44.0.1:4096:4096
-# Persist sessions, auth, and config across restarts / VM rebuild.
 Volume=/mnt/state/opencode:/data:Z
 Environment=XDG_DATA_HOME=/data
 Environment=XDG_CONFIG_HOME=/data/config
-# HOME so git/ssh find /data/.gitconfig and /data/.ssh (written by git-setup.sh).
 Environment=HOME=/data
 Volume=/mnt/state/repos:/repos:Z
-# Start in /repos so OpenCode's project picker defaults to the cloned repos.
 WorkingDir=/repos
-# Provider API keys + OPENCODE_SERVER_PASSWORD live on the state disk, never git.
-# Pre-created empty by state-dirs.service so the server starts before creds exist.
 EnvironmentFile=/mnt/state/secrets/opencode.env
 Exec=serve --hostname 0.0.0.0 --port 4096
 
