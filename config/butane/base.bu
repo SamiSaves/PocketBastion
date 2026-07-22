@@ -55,6 +55,30 @@ storage:
       contents:
         inline: |
           [Container]${OPENCODE_EXTRA_PUBLISH}
+    - path: /etc/containers/systemd/users/1000/opencode.container.d/20-memory.conf
+      mode: 0644
+      contents:
+        inline: |
+          [Container]${OPENCODE_MEMORY_ARGS}
+    - path: /etc/systemd/zram-generator.conf
+      mode: 0644
+      contents:
+        inline: |
+          ${ZRAM_CONFIG}
+    - path: /usr/local/sbin/swapfile-setup.sh
+      mode: 0750
+      contents:
+        inline: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SIZE="${SWAPFILE_SIZE}"
+          [[ -n "$SIZE" ]] || exit 0
+          [[ -e /var/swapfile ]] && exit 0
+          bytes=$(numfmt --from=iec "$SIZE")
+          dd if=/dev/zero of=/var/swapfile bs=1M count=$((bytes / 1048576)) status=none
+          chmod 600 /var/swapfile
+          mkswap /var/swapfile
+          swapon /var/swapfile
     # Quadlet .build unit + its Containerfile: builds a Debian/glibc OpenCode
     # image on the box (the official image is Alpine/musl, which breaks the
     # terminal). opencode.container references this via Image=opencode.build.
@@ -121,6 +145,9 @@ systemd:
     - name: wg-setup.service
       enabled: true
       contents_local: files/systemd/base/wg-setup.service
+    - name: swapfile.service
+      enabled: true
+      contents_local: files/systemd/base/swapfile.service
     - name: wg-quick@wg0.service
       enabled: true
       dropins:

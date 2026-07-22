@@ -1,0 +1,12 @@
+[Unit]
+Description=Create and enable on-disk swapfile
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/swapfile-setup.sh
+ExecStop=/usr/bin/bash -c 'swapoff /var/swapfile 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
