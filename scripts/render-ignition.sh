@@ -61,6 +61,34 @@ for _port in ${OPENCODE_EXTRA_PORTS:-}; do
 done
 export OPENCODE_EXTRA_PUBLISH
 
+# ── Memory guardrails (all optional; empty = off, for larger hosts) ───────────
+_valid_size() { [[ "$1" =~ ^[0-9]+[bkmgtBKMGT]?$ ]]; }
+
+OPENCODE_MEMORY_ARGS=""
+if [[ -n "${OPENCODE_MEMORY_MAX:-}" ]]; then
+  _valid_size "$OPENCODE_MEMORY_MAX" || { echo "ERROR: OPENCODE_MEMORY_MAX '$OPENCODE_MEMORY_MAX' must be a size like 1400m or 2g." >&2; exit 1; }
+  _mem_args="--memory=${OPENCODE_MEMORY_MAX}"
+  if [[ -n "${OPENCODE_MEMORY_SWAP:-}" ]]; then
+    _valid_size "$OPENCODE_MEMORY_SWAP" || { echo "ERROR: OPENCODE_MEMORY_SWAP '$OPENCODE_MEMORY_SWAP' must be a size like 1900m or 2g." >&2; exit 1; }
+    _mem_args+=" --memory-swap=${OPENCODE_MEMORY_SWAP}"
+  fi
+  OPENCODE_MEMORY_ARGS=$'\n          PodmanArgs='"${_mem_args}"
+fi
+export OPENCODE_MEMORY_ARGS
+
+ZRAM_CONFIG=""
+if [[ -n "${ZRAM_SIZE:-}" ]]; then
+  ZRAM_CONFIG='[zram0]'
+  ZRAM_CONFIG+=$'\n          zram-size = '"${ZRAM_SIZE}"
+  ZRAM_CONFIG+=$'\n          compression-algorithm = zstd'
+fi
+export ZRAM_CONFIG
+
+if [[ -n "${SWAPFILE_SIZE:-}" ]]; then
+  _valid_size "$SWAPFILE_SIZE" || { echo "ERROR: SWAPFILE_SIZE '$SWAPFILE_SIZE' must be a size like 2g or 512m." >&2; exit 1; }
+fi
+export SWAPFILE_SIZE="${SWAPFILE_SIZE:-}"
+
 # ── WireGuard bootstrap peer ────────────────────────────────────────────────
 # Baked into Ignition as peer #0 so the tunnel is up before SSH exists.
 resolve_bootstrap_peer() {
@@ -92,7 +120,7 @@ render_one() {
   # shellcheck disable=SC2016  # envsubst needs the literal ${VAR} names
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all 'select(fi==0) *+ select(fi==1)' /w/base.bu "/w/${overlay}" \
-    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL} ${OPENCODE_EXTRA_PUBLISH}' \
+    | envsubst '${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP} ${GIT_USER_NAME} ${GIT_USER_EMAIL} ${OPENCODE_EXTRA_PUBLISH} ${OPENCODE_MEMORY_ARGS} ${ZRAM_CONFIG} ${SWAPFILE_SIZE}' \
     | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
         --pretty --strict --files-dir /w \
     > "$dst"
