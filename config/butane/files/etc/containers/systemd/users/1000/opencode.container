@@ -11,6 +11,7 @@ Volume=/mnt/state/opencode:/data:Z
 Environment=XDG_DATA_HOME=/data
 Environment=XDG_CONFIG_HOME=/data/config
 Environment=HOME=/data
+Environment=POCKETBASTION=1
 Volume=/mnt/state/repos:/repos:Z
 WorkingDir=/repos
 EnvironmentFile=/mnt/state/secrets/opencode.env
