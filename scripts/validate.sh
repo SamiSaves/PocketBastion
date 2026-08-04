@@ -26,13 +26,12 @@ echo ""
 echo "=== systemd-analyze verify ==="
 if check systemd-analyze; then
   UNIT_DIR="$ROOT/config/butane/files/systemd"
-  # Verify base + features + one overlay at a time so cross-unit references
-  # (e.g. var-mnt-state.mount) resolve. The two overlays each define their own
-  # var-mnt-state.mount, so they cannot be loaded together.
+  # One platform at a time: each defines its own var-mnt-state.mount, so they
+  # cannot be loaded together. rpi has no unit dir — Butane generates its mount
+  # unit from `with_mount_unit: true`.
   #
-  # We only fail on unit-syntax errors (unknown directives/sections). Missing
-  # ExecStart binaries and missing referenced units are expected here because
-  # those live on the VM, not this laptop, so that noise is ignored.
+  # Only unit-syntax errors count. Missing ExecStart binaries and missing
+  # referenced units are expected, since those live on the server.
   for env in local digitalocean; do
     mapfile -t units < <(find "$UNIT_DIR/base" "$UNIT_DIR/features" "$UNIT_DIR/$env" -type f \
       \( -name '*.service' -o -name '*.mount' -o -name '*.conf' \))

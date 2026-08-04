@@ -5,12 +5,12 @@
 #
 # deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
 #
-# Usage:   scripts/render-ignition.sh [local|do|all]   (default: local)
+# Usage:   scripts/render-ignition.sh [local|do|rpi|all]   (default: local)
 # Requires: podman, envsubst (gettext)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Override for a second deployment: DEPLOY_ENV=deploy.other.env make ignition-do
+# Override for a second deployment: DEPLOY_ENV=deploy.rpi.env make ignition-rpi
 DEPLOY_ENV="${DEPLOY_ENV:-${REPO_ROOT}/deploy.env}"
 BUTANE_DIR="${REPO_ROOT}/config/butane"
 BUTANE_IMAGE="quay.io/coreos/butane:release"
@@ -180,7 +180,7 @@ render() {
   if [[ "$platform" == "digitalocean" && "$NETWORK_MODE" == "lan" ]]; then
     die "NETWORK_MODE=lan is refused for DigitalOcean: the droplet is on the
        public internet. Use a separate deploy.env for the LAN box:
-         DEPLOY_ENV=deploy.lan.env make ignition-local"
+         DEPLOY_ENV=deploy.rpi.env make ignition-rpi"
   fi
 
   echo "Rendering ${platform} [mode=${NETWORK_MODE}] -> $dst"
@@ -198,12 +198,14 @@ render() {
 case "${1:-local}" in
   local) render local "${OUT_DIR}/local.ign" ;;
   do|digitalocean) render digitalocean "${OUT_DIR}/digitalocean.ign" ;;
+  rpi) render rpi "${OUT_DIR}/rpi.ign" ;;
   all)
     render local "${OUT_DIR}/local.ign"
     render digitalocean "${OUT_DIR}/digitalocean.ign"
+    render rpi "${OUT_DIR}/rpi.ign"
     ;;
   *)
-    echo "Usage: $0 [local|do|all]" >&2
+    echo "Usage: $0 [local|do|rpi|all]" >&2
     exit 1
     ;;
 esac

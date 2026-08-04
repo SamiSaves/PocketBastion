@@ -1,5 +1,6 @@
-.PHONY: help ignition-local ignition-do validate \
+.PHONY: help ignition-local ignition-do ignition-rpi ignition-all validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
+        rpi-flash rpi-selftest \
         wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
         tf-plan tf-apply tf-destroy \
@@ -23,6 +24,12 @@ ignition-local: ## Render local Ignition config from Butane (injects SSH key)
 
 ignition-do: ## Render DigitalOcean Ignition config from Butane
 	@bash scripts/render-ignition.sh do
+
+ignition-rpi: ## Render Raspberry Pi Ignition config from Butane
+	@bash scripts/render-ignition.sh rpi
+
+ignition-all: ## Render every platform's Ignition config
+	@bash scripts/render-ignition.sh all
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
@@ -51,6 +58,14 @@ local-ssh: ## SSH into local VM
 
 local-console: ## Open serial console for local VM
 	@./scripts/local/console.sh
+
+# ── Raspberry Pi 4 ───────────────────────────────────────────────────────────
+
+rpi-flash: ## Flash FCOS + U-Boot to a microSD, preserving /mnt/state  (DEVICE=/dev/sdX)
+	@./scripts/rpi/flash.sh "$(DEVICE)"
+
+rpi-selftest: ## Prove the flash preserves /mnt/state, using a loopback file (no SD card)
+	@./scripts/rpi/selftest.sh
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

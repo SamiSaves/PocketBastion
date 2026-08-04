@@ -7,7 +7,8 @@ web UI on Fedora CoreOS so you can code from anywhere, including your phone,
 without exposing anything to the public internet. The OS is disposable; the
 repos, OpenCode sessions, caches and configs on `/mnt/state` survive a rebuild.
 
-Supported platforms: **DigitalOcean** and **local KVM/libvirt**.
+Supported platforms: **DigitalOcean**, **local KVM/libvirt**, and
+**Raspberry Pi 4**.
 
 ## Network modes
 
@@ -20,7 +21,7 @@ setting, `NETWORK_MODE`:
 | Exposed | UDP 51820 only | SSH + published ports, from `TRUSTED_CIDRS` only |
 | Services bind to | `10.44.0.1` (the tunnel) | `0.0.0.0`, filtered by nftables |
 | Break-glass | Serial console | Serial console |
-| Use for | Anything on the public internet | A box on your own LAN |
+| Use for | Anything on the public internet | A Pi on your own LAN |
 
 `wireguard` is the default and the safe answer. In `lan` mode the render
 **refuses** to produce a config without `TRUSTED_CIDRS`, rejects `0.0.0.0/0`,
@@ -31,8 +32,8 @@ Each `deploy.env` picks one mode. For a second box in a different mode, copy it
 and point the render at the copy:
 
 ```bash
-cp deploy.env deploy.lan.env       # NETWORK_MODE=lan in this one
-DEPLOY_ENV=deploy.lan.env make ignition-local
+cp deploy.env deploy.rpi.env       # NETWORK_MODE=lan in this one
+DEPLOY_ENV=deploy.rpi.env make ignition-rpi
 ```
 
 ## Getting started
@@ -63,7 +64,7 @@ WG_BOOTSTRAP_IP=10.44.0.2                                  # unique in 10.44.0.0
 
 # lan mode — instead of the two above
 TRUSTED_CIDRS="192.168.1.0/24"                             # who may reach it
-SERVER_HOST=pocketbastion.lan                              # where `make` targets connect
+SERVER_HOST=pocketbastion-rpi.lan                          # where `make` targets connect
 ```
 
 <details>
@@ -100,6 +101,7 @@ server, and connecting to it:
 
 - [DigitalOcean](docs/digitalocean.md)
 - [Local (KVM/libvirt)](docs/local.md)
+- [Raspberry Pi 4](docs/raspberry-pi.md)
 
 ### 4. Post-install setup
 
@@ -198,7 +200,8 @@ per-repo deploy key directly — a leaked key grants write to only that one repo
 
 Platform lifecycle commands live in the platform guides
 ([DigitalOcean](docs/digitalocean.md#managing-the-droplet),
-[Local](docs/local.md#managing-the-vm)). Common targets:
+[Local](docs/local.md#managing-the-vm),
+[Raspberry Pi](docs/raspberry-pi.md#5-day-to-day)). Common targets:
 
 ```bash
 make harden-check       # assert the live box matches the security model
@@ -220,8 +223,8 @@ base.bu  *+  <platform>.bu  *+  [features/<feature>.bu ...]
 
 - **`base.bu`** — everything shared: the `core` user, sshd hardening, the
   OpenCode container and its build, git setup, the firewall script, swap.
-- **`<platform>.bu`** — only what differs: `local.bu` and `digitalocean.bu`
-  (hostname, how `/mnt/state` is provided).
+- **`<platform>.bu`** — only what differs: `local.bu`, `digitalocean.bu`,
+  `rpi.bu` (hostname, how `/mnt/state` is provided).
 - **`features/`** — optional layers. `wireguard.bu` is merged in only when
   `NETWORK_MODE=wireguard`; in `lan` mode not a single WireGuard file, unit or
   address is present in the output.
@@ -234,10 +237,11 @@ rejects it.
 
 ```bash
 make validate       # shellcheck, systemd-analyze, render every platform/mode
+make rpi-selftest   # Pi flash preserves /mnt/state, against a loopback file
 make harden-check   # runtime assertions against the live box
 ```
 
-`make validate` renders every platform in both modes and asserts the result,
+`make validate` renders all three platforms in both modes and asserts the result,
 including that the fail-closed paths actually *fail*: `lan` with no
 `TRUSTED_CIDRS`, `TRUSTED_CIDRS=0.0.0.0/0`, `lan` on a public droplet, and an
 unknown `NETWORK_MODE` are all refused.

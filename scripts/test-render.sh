@@ -103,13 +103,14 @@ expect_refusal() {
   fi
 }
 
-echo "== wireguard mode: local + digitalocean"
+echo "== wireguard mode: local + digitalocean + rpi"
 render all NETWORK_MODE=wireguard >/dev/null
 
 LOCAL="$OUT/local.ign"
 DO="$OUT/digitalocean.ign"
+RPI="$OUT/rpi.ign"
 
-for ign_file in "$LOCAL" "$DO"; do
+for ign_file in "$LOCAL" "$DO" "$RPI"; do
   assert "/usr/local/sbin/firewall-setup.sh"                      "$ign_file"
   assert "/usr/local/sbin/git-setup.sh"                           "$ign_file"
   assert "/usr/local/sbin/opencode-password-check.sh"             "$ign_file"
@@ -157,32 +158,40 @@ refute "hello.container"               "$DO"
 refute "format-state-disk.service"     "$DO"
 refute "What=/dev/vdb"                 "$DO"
 
-echo "== lan mode: local"
-render local NETWORK_MODE=lan \
+assert "coreos-boot-disk"          "$RPI"
+assert "by-partlabel/state"        "$RPI"
+refute "hello.container"           "$RPI"
+# The one disk-layout invariant that costs data if broken: an omitted sizeMiB
+# makes Ignition adopt the existing partition. See docs/raspberry-pi.md.
+python3 -c 'import json,sys; p=[x for x in json.load(open(sys.argv[1]))["storage"]["disks"][0]["partitions"] if x.get("label")=="state"][0]; sys.exit("sizeMiB" in p)' "$RPI" \
+  || bad "rpi state partition specifies sizeMiB; a reflash would abort in the initramfs"
+
+echo "== lan mode: rpi"
+render rpi NETWORK_MODE=lan \
   'TRUSTED_CIDRS="192.168.1.0/24 10.9.0.0/16"' >/dev/null
 
-refute "/usr/local/sbin/wg-setup.sh"        "$LOCAL"
-refute "/etc/wireguard/bootstrap-peer.conf" "$LOCAL"
-refute_unit "$LOCAL" "wg-quick@wg0.service"
-refute_unit "$LOCAL" "wg-setup.service"
-refute "10.44.0.1"                          "$LOCAL"
+refute "/usr/local/sbin/wg-setup.sh"        "$RPI"
+refute "/etc/wireguard/bootstrap-peer.conf" "$RPI"
+refute_unit "$RPI" "wg-quick@wg0.service"
+refute_unit "$RPI" "wg-setup.service"
+refute "10.44.0.1"                          "$RPI"
 
-assert_contents "$LOCAL" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
+assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
   "PublishPort=0.0.0.0:4096:4096"
-assert_contents "$LOCAL" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
+assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
   "PublishPort=0.0.0.0:5173:5173"
-assert_contents "$LOCAL" /etc/opencode/firewall.env "NETWORK_MODE=lan"
-assert_contents "$LOCAL" /etc/opencode/firewall.env 'TRUSTED_CIDRS="192.168.1.0/24 10.9.0.0/16"'
+assert_contents "$RPI" /etc/opencode/firewall.env "NETWORK_MODE=lan"
+assert_contents "$RPI" /etc/opencode/firewall.env 'TRUSTED_CIDRS="192.168.1.0/24 10.9.0.0/16"'
 # The firewall must open exactly the ports that are published, no more.
-assert_contents "$LOCAL" /etc/opencode/firewall.env 'OPENCODE_PORTS="4096 5173"'
-assert_contents "$LOCAL" /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf \
+assert_contents "$RPI" /etc/opencode/firewall.env 'OPENCODE_PORTS="4096 5173"'
+assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf \
   "ExecStartPre=/usr/local/sbin/opencode-password-check.sh"
 
 echo "== fail-closed paths"
-expect_refusal "lan mode with no TRUSTED_CIDRS" local \
+expect_refusal "lan mode with no TRUSTED_CIDRS" rpi \
   NETWORK_MODE=lan TRUSTED_CIDRS=
 
-expect_refusal "lan mode trusting the whole internet" local \
+expect_refusal "lan mode trusting the whole internet" rpi \
   NETWORK_MODE=lan TRUSTED_CIDRS=0.0.0.0/0
 
 # Services bind 0.0.0.0, so a v6 rule would open ports nothing listens on.
