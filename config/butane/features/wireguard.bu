@@ -1,0 +1,32 @@
+variant: fcos
+version: 1.5.0
+# Optional feature layer, merged by render-ignition.sh only when
+# NETWORK_MODE=wireguard. Everything WireGuard-specific lives here, so lan mode
+# simply omits the file. The firewall is NOT here: base.bu always ships
+# firewall-setup.sh, which branches on the rendered /etc/opencode/firewall.env.
+storage:
+  files:
+    - path: /usr/local/sbin/wg-setup.sh
+      mode: 0750
+      contents:
+        local: files/usr/local/sbin/wg-setup.sh
+    # Seeds peer #0 so the tunnel is up on first boot, before SSH is reachable.
+    # A public key and a VPN IP are not secrets. wg-setup.sh appends this to
+    # wg0.conf.
+    - path: /etc/wireguard/bootstrap-peer.conf
+      mode: 0600
+      contents:
+        inline: |
+          [Peer]
+          PublicKey  = ${WG_BOOTSTRAP_PUBKEY}
+          AllowedIPs = ${WG_BOOTSTRAP_IP}/32
+systemd:
+  units:
+    - name: wg-setup.service
+      enabled: true
+      contents_local: files/systemd/features/wireguard/wg-setup.service
+    - name: wg-quick@wg0.service
+      enabled: true
+      dropins:
+        - name: after-wg-setup.conf
+          contents_local: files/systemd/features/wireguard/wg-quick@wg0.service.d/after-wg-setup.conf

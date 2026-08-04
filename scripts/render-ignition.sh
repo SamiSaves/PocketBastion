@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders Butane configs to Ignition JSON, one platform at a time:
 #
-#   base.bu *+ <platform>.bu
+#   base.bu *+ <platform>.bu *+ [features/<feature>.bu ...]
 #
 # deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
 #
@@ -91,6 +91,7 @@ fi
 export SWAPFILE_SIZE="${SWAPFILE_SIZE:-}"
 
 resolve_bootstrap_peer
+WG_LAYER="/w/features/wireguard.bu"
 
 # An explicit whitelist, so shell-looking text in the configs (e.g. "$SIZE" in
 # swapfile-setup.sh) survives untouched.
@@ -106,7 +107,7 @@ render() {
   mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all '. as $i ireduce ({}; . *+ $i)' \
-      "/w/base.bu" "/w/${platform}.bu" \
+      "/w/base.bu" "/w/${platform}.bu" ${WG_LAYER:+"$WG_LAYER"} \
     | envsubst "$SUBST_VARS" \
     | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
         --pretty --strict --files-dir /w \
