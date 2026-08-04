@@ -19,7 +19,8 @@ if [[ -z "$NAME" ]]; then
   exit 1
 fi
 
-VM_IP="${SERVER_IP:-10.44.0.1}"
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
 
 META=$("${SSH[@]}" "cat /mnt/state/secrets/git/${NAME}.meta" 2>/dev/null) || {

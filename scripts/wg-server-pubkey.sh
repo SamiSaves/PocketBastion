@@ -12,8 +12,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SECRETS_DIR="${REPO_ROOT}/secrets/wireguard"
-# Over the tunnel — 10.44.0.1 on both envs. Override SERVER_IP for local bootstrap.
-VM_IP="${SERVER_IP:-10.44.0.1}"
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 
 mkdir -p "$SECRETS_DIR"
 chmod 700 "$SECRETS_DIR"

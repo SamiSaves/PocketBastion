@@ -34,10 +34,10 @@ if [[ ! "$PUBKEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
 fi
 
 PUBLIC_KEY="$PUBKEY"
-# The server is managed over the WireGuard tunnel — same address (10.44.0.1) on
-# local and DO. Override SERVER_IP only for the one-time local bootstrap before
-# your tunnel is up, e.g. SERVER_IP="$(scripts/local/ip.sh)".
-VM_IP="${SERVER_IP:-10.44.0.1}"
+# Set SERVER_HOST for the bootstrap, before your own tunnel is up:
+#   SERVER_HOST="$(scripts/local/ip.sh)" make wg-add-peer ...
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 
 if ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \
     grep -qF "$PUBLIC_KEY" /mnt/state/wireguard/peers.conf 2>/dev/null; then

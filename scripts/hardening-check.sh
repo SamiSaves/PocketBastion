@@ -6,11 +6,12 @@
 #
 # Usage:
 #   make harden-check
+#   SERVER_HOST=192.168.1.42 make harden-check
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Runs against the live box over the WireGuard tunnel — 10.44.0.1 on both envs.
-VM_IP="${SERVER_IP:-10.44.0.1}"
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10)
 

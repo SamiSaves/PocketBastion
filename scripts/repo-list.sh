@@ -5,7 +5,8 @@
 #   make repo-list
 set -euo pipefail
 
-VM_IP="${SERVER_IP:-10.44.0.1}"
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 
 ssh -o StrictHostKeyChecking=no "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -euo pipefail

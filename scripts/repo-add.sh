@@ -36,7 +36,8 @@ SLUG="$(printf '%s' "$HOST" | tr -c 'a-zA-Z0-9' '-')"
 NAME="$SLUG-$OWNER-$REPO"
 CANON="git@$HOST:$OWNER/$REPO.git"
 
-VM_IP="${SERVER_IP:-10.44.0.1}"
+. "$(dirname "$0")/lib/server-host.sh"
+VM_IP="$(server_host)"
 SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
 
 # Phase 1: generate the key + meta on the VM, print the public key.

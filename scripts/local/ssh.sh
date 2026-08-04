@@ -3,9 +3,9 @@
 set -euo pipefail
 
 SSH_USER="${SSH_USER:-core}"
-# SSH is WireGuard-only. Reach the box at its tunnel address; bring the tunnel
-# up first. If WireGuard itself is down, use the serial console: make local-console.
-SERVER_IP="${SERVER_IP:-10.44.0.1}"
+# If the tunnel is down, use the serial console: make local-console.
+. "$(dirname "$0")/../lib/server-host.sh"
+SERVER_IP="$(server_host)"
 
 exec ssh \
   -o StrictHostKeyChecking=no \
