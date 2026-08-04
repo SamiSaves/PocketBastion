@@ -6,17 +6,34 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Render without needing a real key on the machine (validation only).
-export SSH_AUTHORIZED_KEY="${SSH_AUTHORIZED_KEY:-ssh-ed25519 AAAAtest render-validation-placeholder}"
-# Bootstrap peer placeholders (valid 44-char base64) so the DO render succeeds.
-export WG_BOOTSTRAP_PUBKEY="${WG_BOOTSTRAP_PUBKEY:-$(printf '0%.0s' {1..43})=}"
-export WG_BOOTSTRAP_IP="${WG_BOOTSTRAP_IP:-10.44.0.2}"
-export GIT_USER_NAME="${GIT_USER_NAME:-render validation}"
-export GIT_USER_EMAIL="${GIT_USER_EMAIL:-render@validation}"
-bash "$ROOT/scripts/render-ignition.sh" all >/dev/null
+# Scratch dir: these placeholder keys must never overwrite a real artifact.
+OUT="$(mktemp -d)"
+trap 'rm -rf "$OUT"' EXIT
+export IGNITION_OUT_DIR="$OUT"
 
-LOCAL="$ROOT/config/ignition/local.ign"
-DO="$ROOT/config/ignition/digitalocean.ign"
+# render-ignition.sh reads DEPLOY_ENV, so every case is just a throwaway file.
+cat > "$OUT/base.env" <<EOF
+SSH_AUTHORIZED_KEY="ssh-ed25519 AAAAtest render-validation-placeholder"
+WG_BOOTSTRAP_PUBKEY=$(printf '0%.0s' {1..43})=
+WG_BOOTSTRAP_IP=10.44.0.2
+GIT_USER_NAME="render validation"
+GIT_USER_EMAIL=render@validation
+OPENCODE_EXTRA_PORTS="5173"
+EOF
+
+# render <target> [VAR=val ...]
+render() {
+  local target="$1"; shift
+  local env_file="$OUT/case.env"
+  cp "$OUT/base.env" "$env_file"
+  printf '%s\n' "$@" >> "$env_file"
+  DEPLOY_ENV="$env_file" bash "$ROOT/scripts/render-ignition.sh" "$target"
+}
+
+render all >/dev/null
+
+LOCAL="$OUT/local.ign"
+DO="$OUT/digitalocean.ign"
 
 fail=0
 assert() { grep -q -- "$1" "$2" || { echo "FAIL: expected '$1' in $(basename "$2")"; fail=1; }; }
