@@ -29,7 +29,7 @@ ignition-do: ## Render DigitalOcean Ignition config from Butane
 validate: ## Validate scripts and configs
 	@./scripts/validate.sh
 
-harden-check: ## Runtime hardening checks against the live VM (phase 10)
+harden-check: ## Runtime hardening checks against the live server
 	@./scripts/hardening-check.sh
 
 # ── Local VM lifecycle ───────────────────────────────────────────────────────
@@ -59,6 +59,7 @@ clean: ## Remove generated Ignition files
 	@echo "Cleaned generated Ignition files."
 
 # ── WireGuard ────────────────────────────────────────────────────────────────
+# Only meaningful when NETWORK_MODE is wireguard.
 
 wg-server-pubkey: ## Fetch server WireGuard public key from VM → secrets/wireguard/server.public
 	@scripts/wg-server-pubkey.sh

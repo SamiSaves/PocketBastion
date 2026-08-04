@@ -1,12 +1,13 @@
 [Unit]
-Description=OpenCode headless server (VPN-only)
+Description=OpenCode headless server
 After=network-online.target
 Wants=network-online.target
 
 [Container]
 Image=opencode.build
 ContainerName=opencode
-PublishPort=10.44.0.1:4096:4096
+# PublishPort lines are rendered into the 10-render.conf dropin: the bind
+# address depends on NETWORK_MODE and this file never sees envsubst.
 Volume=/mnt/state/opencode:/data:Z
 Environment=XDG_DATA_HOME=/data
 Environment=XDG_CONFIG_HOME=/data/config

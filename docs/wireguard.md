@@ -1,5 +1,9 @@
 # WireGuard setup
 
+> Applies to `NETWORK_MODE=wireguard` only. In `lan` mode the box runs no VPN of
+> its own and none of this is needed — see the
+> [network modes](../README.md#network-modes) table.
+
 Every service (SSH, the OpenCode UI, dev servers) is reachable **only** through
 the tunnel, so you set up your device first — its public key is baked into the
 image before the VM exists. The network is `10.44.0.0/24`; the server is

@@ -17,6 +17,10 @@ BUTANE_IMAGE="quay.io/coreos/butane:release"
 YQ_IMAGE="docker.io/mikefarah/yq"
 OUT_DIR="${IGNITION_OUT_DIR:-${REPO_ROOT}/config/ignition}"
 
+OPENCODE_UI_PORT=4096
+# Must match wg-setup.sh's `Address = 10.44.0.1/24`.
+WG_SERVER_IP=10.44.0.1
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 if [[ ! -f "$DEPLOY_ENV" ]]; then
@@ -53,14 +57,64 @@ resolve_bootstrap_peer() {
   export WG_BOOTSTRAP_PUBKEY WG_BOOTSTRAP_IP
 }
 
-# ── Extra OpenCode dev-server ports (optional; the UI on 4096 is always published) ─
-OPENCODE_EXTRA_PUBLISH=""
-for _port in ${OPENCODE_EXTRA_PORTS:-}; do
-  [[ "$_port" =~ ^[0-9]+(-[0-9]+)?$ ]] \
-    || die "OPENCODE_EXTRA_PORTS entry '$_port' must be a port or range (e.g. 8000 or 9000-9010)."
-  OPENCODE_EXTRA_PUBLISH+=$'\n          PublishPort=10.44.0.1:'"${_port}:${_port}"
-done
-export OPENCODE_EXTRA_PUBLISH
+resolve_trusted_cidrs() {
+  local normalised="" cidr
+  for cidr in ${TRUSTED_CIDRS:-}; do
+    # IPv4 only, deliberately: every service binds 0.0.0.0, so a v6 rule could
+    # never match anything but SSH. Accepting one would imply a reachability
+    # that does not exist, and is the only way TRUSTED_CIDRS could name a
+    # globally routable prefix.
+    if [[ "$cidr" == *:* ]]; then
+      die "TRUSTED_CIDRS entry '${cidr}' is an IPv6 range, which is not supported.
+       Services bind 0.0.0.0, so they are only reachable over IPv4.
+       Use the IPv4 range of the same network, e.g. 192.168.1.0/24."
+    fi
+    if [[ "$cidr" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]]; then
+      normalised+="${normalised:+ }${cidr}"
+    else
+      die "TRUSTED_CIDRS entry '${cidr}' is not an IPv4 CIDR (e.g. 192.168.1.0/24)."
+    fi
+  done
+
+  if [[ -z "$normalised" ]]; then
+    die "NETWORK_MODE=lan requires TRUSTED_CIDRS in ${DEPLOY_ENV}.
+       It is the only thing restricting who can reach SSH and the OpenCode UI.
+       Example — your home LAN only:
+         TRUSTED_CIDRS=\"192.168.1.0/24\""
+  fi
+
+  for cidr in $normalised; do
+    case "$cidr" in
+      0.0.0.0/0)
+        die "TRUSTED_CIDRS contains '${cidr}', which trusts every host on the internet.
+       If you genuinely want that, you want NETWORK_MODE=wireguard instead."
+        ;;
+    esac
+  done
+
+  TRUSTED_CIDRS="$normalised"
+  export TRUSTED_CIDRS
+}
+
+# The UI on 4096 is always published; OPENCODE_EXTRA_PORTS adds to it.
+resolve_publish() {
+  local bind_addr="$1" port
+  local ports="$OPENCODE_UI_PORT"
+
+  for port in ${OPENCODE_EXTRA_PORTS:-}; do
+    [[ "$port" =~ ^[0-9]+(-[0-9]+)?$ ]] \
+      || die "OPENCODE_EXTRA_PORTS entry '$port' must be a port or range (e.g. 8000 or 9000-9010)."
+    ports+=" $port"
+  done
+
+  OPENCODE_PUBLISH=""
+  for port in $ports; do
+    OPENCODE_PUBLISH+=$'\n          PublishPort='"${bind_addr}:${port}:${port}"
+  done
+
+  OPENCODE_PORTS="$ports"
+  export OPENCODE_PUBLISH OPENCODE_PORTS
+}
 
 # ── Memory guardrails (all optional; empty = off, for larger hosts) ───────────
 _valid_size() { [[ "$1" =~ ^[0-9]+[bkmgtBKMGT]?$ ]]; }
@@ -90,20 +144,46 @@ if [[ -n "${SWAPFILE_SIZE:-}" ]]; then
 fi
 export SWAPFILE_SIZE="${SWAPFILE_SIZE:-}"
 
-resolve_bootstrap_peer
-WG_LAYER="/w/features/wireguard.bu"
+# The mode is the same for every platform in one render, so resolve it once.
+NETWORK_MODE="${NETWORK_MODE:-wireguard}"
+WG_LAYER=""
+case "$NETWORK_MODE" in
+  wireguard)
+    resolve_bootstrap_peer
+    resolve_publish "$WG_SERVER_IP"
+    OPENCODE_LAN_GUARD=""
+    TRUSTED_CIDRS=""
+    WG_LAYER="/w/features/wireguard.bu"
+    ;;
+  lan)
+    resolve_trusted_cidrs
+    # The LAN address is DHCP-assigned and unknown at render time, so bind
+    # everywhere and let nftables restrict the source.
+    resolve_publish "0.0.0.0"
+    OPENCODE_LAN_GUARD=$'\n          ExecStartPre=/usr/local/sbin/opencode-password-check.sh'
+    ;;
+  *) die "NETWORK_MODE='${NETWORK_MODE}' is not valid. Use 'wireguard' or 'lan'." ;;
+esac
+export NETWORK_MODE OPENCODE_LAN_GUARD TRUSTED_CIDRS
 
 # An explicit whitelist, so shell-looking text in the configs (e.g. "$SIZE" in
 # swapfile-setup.sh) survives untouched.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}
             ${GIT_USER_NAME} ${GIT_USER_EMAIL}
-            ${OPENCODE_EXTRA_PUBLISH} ${OPENCODE_MEMORY_ARGS}
+            ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
+            ${OPENCODE_LAN_GUARD} ${NETWORK_MODE} ${TRUSTED_CIDRS}
             ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
 
 render() {
   local platform="$1" dst="$2"
-  echo "Rendering ${platform} -> $dst"
+  if [[ "$platform" == "digitalocean" && "$NETWORK_MODE" == "lan" ]]; then
+    die "NETWORK_MODE=lan is refused for DigitalOcean: the droplet is on the
+       public internet. Use a separate deploy.env for the LAN box:
+         DEPLOY_ENV=deploy.lan.env make ignition-local"
+  fi
+
+  echo "Rendering ${platform} [mode=${NETWORK_MODE}] -> $dst"
   mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
       eval-all '. as $i ireduce ({}; . *+ $i)' \

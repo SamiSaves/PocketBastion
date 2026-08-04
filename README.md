@@ -3,25 +3,47 @@
 > A remote, security-minded AI devbox.
 
 PocketBastion is a disposable, reproducible AI dev server. It runs the OpenCode
-web UI on Fedora CoreOS, locked entirely behind a WireGuard VPN so you can code
-from anywhere, including your phone, without exposing anything to the public
-internet. It runs on any platform, but this has been setup for DigitalOcean,
-it also runs locally wiht (KVM/libvirt). The OS is disposable, but `/mnt/state`
-repos, OpenCode sessions, caches and configs survive a rebuild.
+web UI on Fedora CoreOS so you can code from anywhere, including your phone,
+without exposing anything to the public internet. The OS is disposable; the
+repos, OpenCode sessions, caches and configs on `/mnt/state` survive a rebuild.
 
-All services (SSH, the OpenCode UI, the dev server) are reachable **only**
-through the WireGuard tunnel. The one break-glass path is the serial console.
+Supported platforms: **DigitalOcean** and **local KVM/libvirt**.
+
+## Network modes
+
+How the box is reached — and therefore what the firewall allows — is a single
+setting, `NETWORK_MODE`:
+
+| | `wireguard` (default) | `lan` |
+|---|---|---|
+| VPN | The box runs its own WireGuard | None; your network already has one |
+| Exposed | UDP 51820 only | SSH + published ports, from `TRUSTED_CIDRS` only |
+| Services bind to | `10.44.0.1` (the tunnel) | `0.0.0.0`, filtered by nftables |
+| Break-glass | Serial console | Serial console |
+| Use for | Anything on the public internet | A box on your own LAN |
+
+`wireguard` is the default and the safe answer. In `lan` mode the render
+**refuses** to produce a config without `TRUSTED_CIDRS`, rejects `0.0.0.0/0`,
+and the OpenCode container refuses to start without a server password — the UI
+is plaintext HTTP in that mode.
+
+Each `deploy.env` picks one mode. For a second box in a different mode, copy it
+and point the render at the copy:
+
+```bash
+cp deploy.env deploy.lan.env       # NETWORK_MODE=lan in this one
+DEPLOY_ENV=deploy.lan.env make ignition-local
+```
 
 ## Getting started
 
-The server is WireGuard-only from first boot, so your device's WireGuard public
-key is baked into the image **before** the VM exists. The steps follow that order.
-
 ### 1. Set up WireGuard
 
-WireGuard is the prerequisite for everything else — your public key is baked into
-the image before the VM exists. Follow [docs/wireguard.md](docs/wireguard.md) to
-create your keypair and tunnel config.
+Skip this if you are using `lan` mode; go to step 2.
+
+In `wireguard` mode the server is WireGuard-only from first boot, so your
+device's public key is baked into the image **before** the VM exists. Follow
+[docs/wireguard.md](docs/wireguard.md) to create your keypair and tunnel config.
 
 ### 2. Configure `deploy.env`
 
@@ -29,12 +51,19 @@ create your keypair and tunnel config.
 cp deploy.env.example deploy.env
 ```
 
-Fill in two **public** keys (private keys never enter this repo):
+Fill in your SSH **public** key (private keys never enter this repo), then the
+settings for your chosen network mode:
 
 ```bash
-SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"         # log in over the tunnel
-WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # from docs/wireguard.md; seeds VPN peer #0
-WG_BOOTSTRAP_IP=10.44.0.2                                  # this device's VPN address (unique in 10.44.0.0/24)
+SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"          # log in to the server
+
+# wireguard mode (default) — from docs/wireguard.md
+WG_BOOTSTRAP_PUBKEY=<your device's WireGuard public key>   # seeds VPN peer #0
+WG_BOOTSTRAP_IP=10.44.0.2                                  # unique in 10.44.0.0/24
+
+# lan mode — instead of the two above
+TRUSTED_CIDRS="192.168.1.0/24"                             # who may reach it
+SERVER_HOST=pocketbastion.lan                              # where `make` targets connect
 ```
 
 <details>
@@ -67,17 +96,18 @@ Host pocketbastion
 ### 3. Create your server & connect
 
 Follow the guide for your platform — each covers its prerequisites, creating the
-server, and connecting your tunnel:
+server, and connecting to it:
 
 - [DigitalOcean](docs/digitalocean.md)
 - [Local (KVM/libvirt)](docs/local.md)
 
 ### 4. Post-install setup
 
-SSH in over the tunnel:
+SSH in:
 
 ```bash
-ssh core@10.44.0.1      # same address on both envs; `make local-ssh` wraps this for local
+ssh core@10.44.0.1        # wireguard mode; `make local-ssh` wraps this for local
+ssh core@$SERVER_HOST     # lan mode
 ```
 
 Everything below lives on `/mnt/state`, so you only do it once — it survives
@@ -87,10 +117,14 @@ teardown.
 `/mnt/state/secrets/opencode.env`):
 
 ```bash
-printf 'OPENCODE_SERVER_PASSWORD=%s\n' 'your-strong-password' \
+printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \
   > /mnt/state/secrets/opencode.env
 chmod 600 /mnt/state/secrets/opencode.env
 ```
+
+In `lan` mode this is **mandatory** — the container refuses to start without it,
+and rejects passwords shorter than 12 characters. In `wireguard` mode the tunnel
+is the credential, but set one anyway.
 
 Optionally add provider keys to the same file, one per line
 (`ANTHROPIC_API_KEY=…`, `OPENAI_API_KEY=…`).
@@ -108,11 +142,12 @@ podman exec -it opencode opencode auth login
 systemctl --user restart opencode.service
 ```
 
-The UI is then reachable at `http://10.44.0.1:4096` over the VPN.
+The UI is then reachable at `http://10.44.0.1:4096` (wireguard) or
+`http://<server>:4096` from a trusted network (lan).
 
 ### Running a dev server
 
-Only ports you list are forwarded from the tunnel into OpenCode's (untrusted,
+Only ports you list are published from OpenCode's (untrusted,
 network-isolated) container. Add them to `OPENCODE_EXTRA_PORTS` in `deploy.env`
 (space-separated ports/ranges), then re-render and redeploy:
 
@@ -120,8 +155,11 @@ network-isolated) container. Add them to `OPENCODE_EXTRA_PORTS` in `deploy.env`
 OPENCODE_EXTRA_PORTS="3000 5173 8000-8010"
 ```
 
-Start the server bound to `0.0.0.0` (not `10.44.0.1`, which the container can't
-see); it's then reachable at `http://10.44.0.1:<port>` over the VPN:
+In `lan` mode these are also exactly the ports the firewall opens to
+`TRUSTED_CIDRS` — nothing else is reachable.
+
+Start the server bound to `0.0.0.0` (not the host's address, which the container
+can't see):
 
 ```bash
 npm run dev -- --host 0.0.0.0 --port 5173
@@ -129,8 +167,8 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ### Adding more devices
 
-Generate each device's keypair on the device, then register only its **public**
-key on the server:
+`wireguard` mode only. Generate each device's keypair on the device, then
+register only its **public** key on the server:
 
 ```bash
 make wg-add-peer PEER=phone IP=10.44.0.4 PUBKEY=<device public key>
@@ -163,31 +201,72 @@ Platform lifecycle commands live in the platform guides
 [Local](docs/local.md#managing-the-vm)). Common targets:
 
 ```bash
-make wg-server-pubkey   # fetch the server WireGuard key over the tunnel
-make validate           # validate scripts and configs
+make harden-check       # assert the live box matches the security model
+make wg-server-pubkey   # fetch the server WireGuard key (wireguard mode)
+make validate           # static checks: shellcheck, systemd, render
 make help               # full list of targets
 ```
+
+`SERVER_HOST` in `deploy.env` decides where these connect; override it for a
+single command with `SERVER_HOST=192.168.1.42 make repo-list`.
+
+## How the config is built
+
+Every platform is a deep merge of three layers, compiled by Butane `--strict`:
+
+```
+base.bu  *+  <platform>.bu  *+  [features/<feature>.bu ...]
+```
+
+- **`base.bu`** — everything shared: the `core` user, sshd hardening, the
+  OpenCode container and its build, git setup, the firewall script, swap.
+- **`<platform>.bu`** — only what differs: `local.bu` and `digitalocean.bu`
+  (hostname, how `/mnt/state` is provided).
+- **`features/`** — optional layers. `wireguard.bu` is merged in only when
+  `NETWORK_MODE=wireguard`; in `lan` mode not a single WireGuard file, unit or
+  address is present in the output.
+
+Invariant: every file path and unit name lives in **exactly one** layer. `*+`
+appends arrays, so a duplicate would survive the merge and Butane `--strict`
+rejects it.
+
+## Testing
+
+```bash
+make validate       # shellcheck, systemd-analyze, render every platform/mode
+make harden-check   # runtime assertions against the live box
+```
+
+`make validate` renders every platform in both modes and asserts the result,
+including that the fail-closed paths actually *fail*: `lan` with no
+`TRUSTED_CIDRS`, `TRUSTED_CIDRS=0.0.0.0/0`, `lan` on a public droplet, and an
+unknown `NETWORK_MODE` are all refused.
 
 ## Security notes
 
 - No secrets are committed to this repository.
 - The `core` user has a **public, default console password** (`space-depend-south`)
-  for break-glass only. Change it on your first console login; sshd is key-only
-  and WireGuard-only, so it is never usable over the network.
+  for break-glass only. Change it on your first console login; sshd is key-only,
+  so it is never usable over the network.
+- **`wireguard` mode:** all inbound traffic except WireGuard UDP is dropped. SSH
+  is not exposed publicly at all — break-glass is the serial console.
+- **`lan` mode:** SSH and the published ports are opened to `TRUSTED_CIDRS`
+  only; everything else is dropped. The render refuses an empty `TRUSTED_CIDRS`
+  or `0.0.0.0/0`, and if `firewall.env` is ever hand-edited into that state the
+  firewall applies a full lockdown rather than opening up. The OpenCode
+  container will not start without a server password of at least 12 characters.
 - The WireGuard **server** key is generated on first boot, stored on `/mnt/state`,
-  and reused across VM/droplet rebuilds — teardown does not force clients to
-  reconfigure. Only wiping the state disk/volume regenerates it.
+  and reused across rebuilds — teardown does not force clients to reconfigure.
+  Only wiping the state disk/volume regenerates it.
 - WireGuard **client** keys are generated on each device; only public keys are
   ever shared. This repo never generates, stores, or transports a client private key.
-- GitHub credentials use narrowly scoped deploy keys, not personal access tokens.
-- All inbound traffic except WireGuard UDP is blocked by the firewall.
+- Git credentials use narrowly scoped per-repo deploy keys, not personal access
+  tokens.
 
 ## TODO
 
-- Run repository applicaitons in dev mode and make them accessible via browser through WireGuard
 - Improve security stance on opencode container, see if we can avoid it having so many secrets, such as git ssh keys
 - See if we could host vscode server for better development experience
-- Tests (and validation)
 - Small security audit
 - Make core os password configurable
 - Consider DNS for VM

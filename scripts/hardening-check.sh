@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# hardening-check.sh — Runtime checks that the live VM matches the security model.
-#
-# Static checks live in validate.sh (shellcheck + butane render); this script
-# talks to the running VM and asserts the phase-10 hardening properties.
+# Runtime checks that the live box matches the security model. Static checks
+# live in validate.sh. What is asserted depends on NETWORK_MODE, which is read
+# from the box rather than deploy.env — deploy.env may have moved on since the
+# last render.
 #
 # Usage:
 #   make harden-check
@@ -17,32 +17,32 @@ SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o Connect
 
 OUT=""
 
-# ── Host-side check: no secrets tracked by git ───────────────────────────────
 if git -C "$REPO_ROOT" ls-files | grep -iqE '\.(private|key|pem)$|deploy_key|/secrets/'; then
   OUT+=$'FAIL: secrets tracked by git\n'
 else
   OUT+=$'PASS: no secrets tracked by git\n'
 fi
 
-# ── VM-side checks (one SSH session) ─────────────────────────────────────────
 OUT+="$(ssh "${SSH_OPTS[@]}" "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -uo pipefail
 
-check_not_public() {
-  local port=$1 label=$2 bad
-  local trusted_binds='^(127\.0\.0\.1|\[::1\]|10\.44\.0\.1)$'
-  bad=$(ss -Hltn "sport = :$port" 2>/dev/null \
-    | awk '{print $4}' | sed 's/:[0-9]*$//' \
-    | grep -vE "$trusted_binds" || true)
-  if [[ -z "$bad" ]]; then
-    echo "PASS: port $port ($label) not listening on public interface"
-  else
-    echo "FAIL: port $port ($label) listening on: $(echo "$bad" | tr '\n' ' ')"
-  fi
-}
+NETWORK_MODE=wireguard
+TRUSTED_CIDRS=""
+OPENCODE_PORTS=4096
+if [[ -r /etc/opencode/firewall.env ]]; then
+  # shellcheck source=/dev/null
+  . /etc/opencode/firewall.env
+fi
+echo "INFO: NETWORK_MODE=${NETWORK_MODE}"
 
-check_not_public 4096 OpenCode
-check_not_public 5173 Vite
+ruleset="$(sudo nft list table inet opencode_dev 2>/dev/null)"
+if [[ -z "$ruleset" ]]; then
+  echo "FAIL: nftables table 'inet opencode_dev' is missing (firewall.service failed?)"
+elif grep -qE 'type filter hook input .*policy drop' <<<"$ruleset"; then
+  echo "PASS: firewall input chain defaults to drop"
+else
+  echo "FAIL: firewall input chain does not default to drop"
+fi
 
 sshd_val() { sudo sshd -T 2>/dev/null | awk -v k="$1" 'tolower($1)==k{print tolower($2)}'; }
 [[ "$(sshd_val passwordauthentication)" == "no" ]] \
@@ -50,28 +50,81 @@ sshd_val() { sudo sshd -T 2>/dev/null | awk -v k="$1" 'tolower($1)==k{print tolo
   || echo "FAIL: SSH password auth enabled"
 [[ "$(sshd_val permitrootlogin)" == "no" ]] \
   && echo "PASS: root SSH disabled" \
-  || echo "FAIL: root SSH enabled"
-
-if ip link show wg0 &>/dev/null && ss -Huln 2>/dev/null | grep -q ':51820'; then
-  echo "PASS: WireGuard listening"
-else
-  echo "FAIL: WireGuard not listening (wg0 down or UDP 51820 closed)"
-fi
+  || echo "FAIL: root SSH disabled expected, got '$(sshd_val permitrootlogin)'"
 
 if mountpoint -q /var/mnt/state; then
   echo "PASS: /mnt/state persists (separate mount)"
 else
   echo "FAIL: /mnt/state is not a separate mount"
 fi
+
+# Quadlet is a systemd generator: an ignored PublishPort dropin yields a unit
+# missing that flag, silently. This is where that shows up.
+for port in $OPENCODE_PORTS; do
+  [[ "$port" == *-* ]] && continue   # ss cannot match a range
+  binds=$(ss -Hltn "sport = :$port" 2>/dev/null | awk '{print $4}' | sed 's/:[0-9]*$//')
+  if [[ -z "$binds" ]]; then
+    echo "FAIL: port $port is not listening (was the PublishPort dropin applied?)"
+    continue
+  fi
+  echo "PASS: port $port is listening"
+  [[ "$NETWORK_MODE" == wireguard ]] || continue
+  bad=$(grep -vE '^(127\.0\.0\.1|\[::1\]|10\.44\.0\.1)$' <<<"$binds" || true)
+  if [[ -z "$bad" ]]; then
+    echo "PASS: port $port not listening on public interface"
+  else
+    echo "FAIL: port $port listening on: $(tr '\n' ' ' <<<"$bad")"
+  fi
+done
+
+case "$NETWORK_MODE" in
+wireguard)
+  if ip link show wg0 &>/dev/null && ss -Huln 2>/dev/null | grep -q ':51820'; then
+    echo "PASS: WireGuard listening"
+  else
+    echo "FAIL: WireGuard not listening (wg0 down or UDP 51820 closed)"
+  fi
+
+  if grep -q 'iifname "wg0" accept' <<<"$ruleset"; then
+    echo "PASS: only wg0 traffic is accepted past the firewall"
+  else
+    echo "FAIL: firewall does not restrict access to the wg0 interface"
+  fi
+  ;;
+
+lan)
+  if [[ -z "${TRUSTED_CIDRS// /}" ]]; then
+    echo "FAIL: lan mode with an empty TRUSTED_CIDRS (firewall is in lockdown)"
+  else
+    ok=1
+    for cidr in $TRUSTED_CIDRS; do
+      grep -qF "$cidr" <<<"$ruleset" || { echo "FAIL: trusted network $cidr is not in the ruleset"; ok=0; }
+    done
+    [[ $ok -eq 1 ]] && echo "PASS: firewall restricts access to TRUSTED_CIDRS (${TRUSTED_CIDRS})"
+  fi
+
+  # An accept rule with no source restriction would defeat the whole model.
+  if grep -E '^\s+(tcp|udp) dport' <<<"$ruleset" | grep -qv 'saddr'; then
+    echo "FAIL: firewall has a port accept rule with no source restriction"
+  else
+    echo "PASS: every port accept rule is source-restricted"
+  fi
+
+  if ip link show wg0 &>/dev/null; then
+    echo "FAIL: wg0 exists in lan mode (stale config from a previous render?)"
+  else
+    echo "PASS: no WireGuard interface (as expected in lan mode)"
+  fi
+
+  if /usr/local/sbin/opencode-password-check.sh >/dev/null 2>&1; then
+    echo "PASS: OpenCode server password is set"
+  else
+    echo "FAIL: OPENCODE_SERVER_PASSWORD is unset, empty or too short"
+  fi
+  ;;
+esac
 REMOTE
 )"$'\n'
-
-# ── SSH over WireGuard (needs the tunnel up on THIS host) ─────────────────────
-if ssh "${SSH_OPTS[@]}" -o BatchMode=yes core@10.44.0.1 true &>/dev/null; then
-  OUT+=$'PASS: SSH works over WireGuard\n'
-else
-  OUT+=$'SKIP: SSH over WireGuard (bring the tunnel up on this host to test)\n'
-fi
 
 echo "$OUT"
 if grep -q '^FAIL' <<<"$OUT"; then
