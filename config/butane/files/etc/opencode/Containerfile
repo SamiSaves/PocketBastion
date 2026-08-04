@@ -1,10 +1,6 @@
-# Custom OpenCode image.
-#
-# The official ghcr.io/anomalyco/opencode image is Alpine (musl); OpenCode's
-# terminal loads a glibc-only native PTY library (needs gnu_get_libc_version),
-# so the integrated terminal is broken on musl. We build on node:24-slim
-# (Debian/glibc) instead, which fixes the terminal and avoids other musl
-# papercuts. node/npm are handy for the agent's own tooling.
+# The official OpenCode image is Alpine (musl), and OpenCode's terminal loads a
+# glibc-only native PTY library, so the integrated terminal is broken there.
+# node:24-slim is Debian/glibc, and node/npm are useful to the agent anyway.
 FROM docker.io/library/node:24-slim
 
 RUN apt-get update \
