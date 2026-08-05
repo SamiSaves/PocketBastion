@@ -103,6 +103,20 @@ expect_refusal() {
   fi
 }
 
+echo "== constants agree with the box"
+# wg-setup.sh assigns the tunnel address on the server and is shipped verbatim,
+# so it cannot read constants.sh. If the two drift, services bind an address
+# the interface does not have and the box is unreachable.
+# shellcheck source=lib/constants.sh
+. "$ROOT/scripts/lib/constants.sh"
+wg_addr="$(sed -n 's|^Address[[:space:]]*=[[:space:]]*\([0-9.]*\)/.*|\1|p' \
+  "$ROOT/config/butane/files/usr/local/sbin/wg-setup.sh")"
+if [[ "$wg_addr" == "$WG_SERVER_IP" ]]; then
+  note "WG_SERVER_IP matches wg-setup.sh ($WG_SERVER_IP)"
+else
+  bad "wg-setup.sh assigns '${wg_addr:-<none>}' but constants.sh says WG_SERVER_IP=$WG_SERVER_IP"
+fi
+
 echo "== wireguard mode: local + digitalocean + rpi"
 render all NETWORK_MODE=wireguard >/dev/null
 
@@ -132,7 +146,7 @@ for ign_file in "$LOCAL" "$DO" "$RPI"; do
   assert_unit "$ign_file" "wg-setup.service"
 
   assert_contents "$ign_file" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
-    "PublishPort=10.44.0.1:4096:4096"
+    "PublishPort=${WG_SERVER_IP}:4096:4096"
   assert_contents "$ign_file" /etc/pocketbastion/firewall.env "NETWORK_MODE=wireguard"
   refute_contents "$ign_file" /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf \
     "opencode-password-check.sh"
@@ -174,7 +188,7 @@ refute "/usr/local/sbin/wg-setup.sh"        "$RPI"
 refute "/etc/wireguard/bootstrap-peer.conf" "$RPI"
 refute_unit "$RPI" "wg-quick@wg0.service"
 refute_unit "$RPI" "wg-setup.service"
-refute "10.44.0.1"                          "$RPI"
+refute "$WG_SERVER_IP"                      "$RPI"
 
 assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
   "PublishPort=0.0.0.0:4096:4096"

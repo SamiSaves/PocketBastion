@@ -3,6 +3,9 @@
 # `server_host`. Precedence: the SERVER_HOST environment variable, then
 # deploy.env, then the WireGuard address.
 
+# shellcheck source=constants.sh
+. "${BASH_SOURCE[0]%/*}/constants.sh"   # WG_SERVER_IP
+
 server_host() {
   local deploy_env="${BASH_SOURCE[0]%/*}/../../deploy.env"
   if [[ -z "${SERVER_HOST:-}" && -f "$deploy_env" ]]; then
@@ -10,7 +13,7 @@ server_host() {
     # shellcheck source=/dev/null
     SERVER_HOST="$(. "$deploy_env" >/dev/null 2>&1; printf '%s' "${SERVER_HOST:-}")"
   fi
-  # Must match wg-setup.sh's `Address = 10.44.0.1/24`. Only correct in wireguard
-  # mode; lan mode has no fixed address, so it must set SERVER_HOST.
-  printf '%s\n' "${SERVER_HOST:-10.44.0.1}"
+  # Only correct in wireguard mode; lan mode has no fixed address, so it must
+  # set SERVER_HOST.
+  printf '%s\n' "${SERVER_HOST:-$WG_SERVER_IP}"
 }

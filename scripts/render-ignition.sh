@@ -18,8 +18,8 @@ YQ_IMAGE="docker.io/mikefarah/yq"
 OUT_DIR="${IGNITION_OUT_DIR:-${REPO_ROOT}/config/ignition}"
 
 OPENCODE_UI_PORT=4096
-# Must match wg-setup.sh's `Address = 10.44.0.1/24`.
-WG_SERVER_IP=10.44.0.1
+# shellcheck source=lib/constants.sh
+. "${REPO_ROOT}/scripts/lib/constants.sh"   # WG_SERVER_IP
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
