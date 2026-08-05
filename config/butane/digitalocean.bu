@@ -5,8 +5,15 @@ version: 1.5.0
 # Contains ONLY what differs from base for DigitalOcean:
 #   - DO hostname
 #   - state disk mounted by label from the pre-formatted DO Volume
-#     (Terraform creates it with initial_filesystem_type=ext4, label=state),
-#     so there is no format-on-first-boot service
+#     (Terraform creates it with initial_filesystem_type=ext4, label=state)
+#
+# This is the one platform that does NOT declare the state disk under
+# storage.filesystems the way local.bu and rpi.bu do. Ignition runs in the
+# initramfs and fails hard on a device that is not there, but the volume is
+# attached by digitalocean_volume_attachment — a separate resource, applied
+# after the droplet is created. So the mount has to be a plain systemd unit
+# that waits for the device instead. x-systemd.growfs picks up a resized volume.
+#
 # Core user, SSH key, firewall, bootstrap WG peer all live in base.bu.
 storage:
   files:

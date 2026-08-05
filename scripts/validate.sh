@@ -26,26 +26,29 @@ echo ""
 echo "=== systemd-analyze verify ==="
 if check systemd-analyze; then
   UNIT_DIR="$ROOT/config/butane/files/systemd"
-  # One platform at a time: each defines its own var-mnt-state.mount, so they
-  # cannot be loaded together. rpi has no unit dir — Butane generates its mount
-  # unit from `with_mount_unit: true`.
+  # digitalocean is the only platform with hand-written units: local and rpi
+  # declare their state disk under storage.filesystems and let Butane generate
+  # the mount unit (see digitalocean.bu for why DO cannot).
+  #
+  # Butane-generated units are not checked here — they are checked in the
+  # rendered Ignition by test-render.sh instead.
   #
   # Only unit-syntax errors count. Missing ExecStart binaries and missing
   # referenced units are expected, since those live on the server.
-  for env in local digitalocean; do
-    mapfile -t units < <(find "$UNIT_DIR/base" "$UNIT_DIR/features" "$UNIT_DIR/$env" -type f \
-      \( -name '*.service' -o -name '*.mount' -o -name '*.conf' \))
-    out="$(systemd-analyze verify "${units[@]}" 2>&1 || true)"
-    bad="$(printf '%s\n' "$out" | grep -E \
-      'Unknown key name|Unknown section|Unknown lvalue|Failed to parse|assignment outside of section' || true)"
-    if [[ -n "$bad" ]]; then
-      echo "  [$env] unit syntax errors:"
-      printf '%s\n' "$bad" | sed 's/^/    /'
-      ERRORS=$((ERRORS + 1))
-    else
-      echo "  [$env] OK"
-    fi
-  done
+  # Every hand-written unit in one pass: no two share a name any more, so they
+  # can all be loaded together.
+  mapfile -t units < <(find "$UNIT_DIR" -type f \
+    \( -name '*.service' -o -name '*.mount' -o -name '*.conf' \))
+  out="$(systemd-analyze verify "${units[@]}" 2>&1 || true)"
+  bad="$(printf '%s\n' "$out" | grep -E \
+    'Unknown key name|Unknown section|Unknown lvalue|Failed to parse|assignment outside of section' || true)"
+  if [[ -n "$bad" ]]; then
+    echo "  unit syntax errors:"
+    printf '%s\n' "$bad" | sed 's/^/    /'
+    ERRORS=$((ERRORS + 1))
+  else
+    echo "  OK (${#units[@]} units)"
+  fi
 fi
 
 echo ""

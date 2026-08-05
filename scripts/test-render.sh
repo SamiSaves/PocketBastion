@@ -163,13 +163,11 @@ ign unit "$DO" firewall.service | grep -E '^(After|Before|Requires|Wants)=' | gr
   && bad "firewall.service is ordered against a WireGuard unit that lan mode does not have"
 
 assert "/etc/containers/systemd/users/1000/hello.container" "$LOCAL"
-assert "format-state-disk.service"                          "$LOCAL"
 assert "What=/dev/vdb"                                      "$LOCAL"
 refute "by-label/state"                                     "$LOCAL"
 
 assert "What=/dev/disk/by-label/state" "$DO"
 refute "hello.container"               "$DO"
-refute "format-state-disk.service"     "$DO"
 refute "What=/dev/vdb"                 "$DO"
 
 assert "coreos-boot-disk"          "$RPI"
