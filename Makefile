@@ -8,7 +8,7 @@
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
-VM_NAME      := opencode-dev-server-local
+VM_NAME      := pocketbastion-local
 TF_DIR       := terraform/digitalocean
 TFVARS       := $(abspath deploy.tfvars)
 DEPLOY_ENV   := $(abspath deploy.env)

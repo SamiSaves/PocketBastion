@@ -1,14 +1,14 @@
 #!/bin/bash
 # Renders and applies the nftables ruleset, reading its mode and parameters from
-# /etc/opencode/firewall.env (written by scripts/render-ignition.sh).
+# /etc/pocketbastion/firewall.env (written by scripts/render-ignition.sh).
 #
 # Fails CLOSED: an unknown mode, or lan mode with no TRUSTED_CIDRS, applies a
 # lockdown ruleset. Fedora CoreOS ships no default ruleset, so exiting non-zero
 # here would leave the box wide open.
 set -euo pipefail
 
-FW_ENV=/etc/opencode/firewall.env
-NFT_CONF=/etc/nftables/opencode-dev-server.nft
+FW_ENV=/etc/pocketbastion/firewall.env
+NFT_CONF=/etc/nftables/pocketbastion.nft
 WG_PORT=51820
 
 NETWORK_MODE=wireguard
@@ -82,7 +82,7 @@ cat > "$NFT_CONF" << EOF
 # Rendered by firewall-setup.sh (mode: ${NETWORK_MODE}) — do not edit by hand.
 flush ruleset
 
-table inet opencode_dev {
+table inet pocketbastion {
   chain input {
     type filter hook input priority filter; policy drop;
 

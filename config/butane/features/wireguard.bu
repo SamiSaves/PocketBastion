@@ -3,7 +3,7 @@ version: 1.5.0
 # Optional feature layer, merged by render-ignition.sh only when
 # NETWORK_MODE=wireguard. Everything WireGuard-specific lives here, so lan mode
 # simply omits the file. The firewall is NOT here: base.bu always ships
-# firewall-setup.sh, which branches on the rendered /etc/opencode/firewall.env.
+# firewall-setup.sh, which branches on the rendered /etc/pocketbastion/firewall.env.
 storage:
   files:
     - path: /usr/local/sbin/wg-setup.sh

@@ -8,7 +8,7 @@
 # To also wipe the state disk, run: make local-wipe-state
 set -euo pipefail
 
-VM_NAME="opencode-dev-server-local"
+VM_NAME="pocketbastion-local"
 IMGDIR="/var/lib/libvirt/images"
 
 if ! virsh --connect qemu:///system dominfo "$VM_NAME" &>/dev/null; then

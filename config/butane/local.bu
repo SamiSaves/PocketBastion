@@ -13,14 +13,14 @@ storage:
       mode: 0644
       overwrite: true
       contents:
-        inline: opencode-dev-server-local
+        inline: pocketbastion-local
     - path: /etc/motd
       mode: 0644
       overwrite: true
       contents:
         inline: |
           ┌─────────────────────────────────────────────┐
-          │  opencode-dev-server  (local KVM)           │
+          │  PocketBastion  (local KVM)                 │
           │  /mnt/state is the only persistent data     │
           └─────────────────────────────────────────────┘
 

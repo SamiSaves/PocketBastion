@@ -29,15 +29,15 @@ set -uo pipefail
 NETWORK_MODE=wireguard
 TRUSTED_CIDRS=""
 OPENCODE_PORTS=4096
-if [[ -r /etc/opencode/firewall.env ]]; then
+if [[ -r /etc/pocketbastion/firewall.env ]]; then
   # shellcheck source=/dev/null
-  . /etc/opencode/firewall.env
+  . /etc/pocketbastion/firewall.env
 fi
 echo "INFO: NETWORK_MODE=${NETWORK_MODE}"
 
-ruleset="$(sudo nft list table inet opencode_dev 2>/dev/null)"
+ruleset="$(sudo nft list table inet pocketbastion 2>/dev/null)"
 if [[ -z "$ruleset" ]]; then
-  echo "FAIL: nftables table 'inet opencode_dev' is missing (firewall.service failed?)"
+  echo "FAIL: nftables table 'inet pocketbastion' is missing (firewall.service failed?)"
 elif grep -qE 'type filter hook input .*policy drop' <<<"$ruleset"; then
   echo "PASS: firewall input chain defaults to drop"
 else

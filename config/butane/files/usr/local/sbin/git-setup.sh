@@ -48,6 +48,6 @@ for meta in "$SECRETS"/*.meta; do
 done
 
 chmod 600 "$host_cfg" "$cont_cfg"
-install -m 600 /etc/opencode/gitconfig "$DATA/.gitconfig"
+install -m 600 /etc/pocketbastion/gitconfig "$DATA/.gitconfig"
 
 chown -R 1000:1000 "$SECRETS" "$DATA/.ssh" "$DATA/.gitconfig" "$CORE_HOME/.ssh"

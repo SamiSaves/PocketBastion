@@ -48,7 +48,7 @@ resource "digitalocean_droplet" "server" {
   ssh_keys  = [digitalocean_ssh_key.core.id]
   user_data = file("${path.module}/../../config/ignition/digitalocean.ign")
 
-  tags = ["opencode-dev-server", "coreos"]
+  tags = ["pocketbastion", "coreos"]
 }
 
 resource "digitalocean_volume_attachment" "state" {

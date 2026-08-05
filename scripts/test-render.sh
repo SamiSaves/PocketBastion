@@ -116,9 +116,9 @@ for ign_file in "$LOCAL" "$DO" "$RPI"; do
   assert "/usr/local/sbin/opencode-password-check.sh"             "$ign_file"
   assert "/etc/containers/systemd/users/1000/opencode.container"  "$ign_file"
   assert "/etc/containers/systemd/users/1000/opencode.build"      "$ign_file"
-  assert "/etc/opencode/Containerfile"                            "$ign_file"
-  assert "/etc/opencode/gitconfig"                                "$ign_file"
-  assert "/etc/opencode/firewall.env"                             "$ign_file"
+  assert "/etc/pocketbastion/Containerfile"                       "$ign_file"
+  assert "/etc/pocketbastion/gitconfig"                           "$ign_file"
+  assert "/etc/pocketbastion/firewall.env"                        "$ign_file"
   assert "state-dirs.service"                                     "$ign_file"
   assert "git-setup.service"                                      "$ign_file"
   assert "firewall.service"                                       "$ign_file"
@@ -126,14 +126,14 @@ for ign_file in "$LOCAL" "$DO" "$RPI"; do
   # shellcheck disable=SC2016
   assert '\$6\$uxZJIlbecCN0'                                      "$ign_file"
 
-  assert "/usr/local/sbin/wg-setup.sh"        "$ign_file"
-  assert "/etc/wireguard/bootstrap-peer.conf" "$ign_file"
+  assert "/usr/local/sbin/wg-setup.sh"                            "$ign_file"
+  assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign_file"
   assert_unit "$ign_file" "wg-quick@wg0.service"
   assert_unit "$ign_file" "wg-setup.service"
 
   assert_contents "$ign_file" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
     "PublishPort=10.44.0.1:4096:4096"
-  assert_contents "$ign_file" /etc/opencode/firewall.env "NETWORK_MODE=wireguard"
+  assert_contents "$ign_file" /etc/pocketbastion/firewall.env "NETWORK_MODE=wireguard"
   refute_contents "$ign_file" /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf \
     "opencode-password-check.sh"
   refute_contents "$ign_file" /etc/containers/systemd/users/1000/opencode.container "PublishPort="
@@ -180,10 +180,10 @@ assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/1
   "PublishPort=0.0.0.0:4096:4096"
 assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf \
   "PublishPort=0.0.0.0:5173:5173"
-assert_contents "$RPI" /etc/opencode/firewall.env "NETWORK_MODE=lan"
-assert_contents "$RPI" /etc/opencode/firewall.env 'TRUSTED_CIDRS="192.168.1.0/24 10.9.0.0/16"'
+assert_contents "$RPI" /etc/pocketbastion/firewall.env "NETWORK_MODE=lan"
+assert_contents "$RPI" /etc/pocketbastion/firewall.env 'TRUSTED_CIDRS="192.168.1.0/24 10.9.0.0/16"'
 # The firewall must open exactly the ports that are published, no more.
-assert_contents "$RPI" /etc/opencode/firewall.env 'OPENCODE_PORTS="4096 5173"'
+assert_contents "$RPI" /etc/pocketbastion/firewall.env 'OPENCODE_PORTS="4096 5173"'
 assert_contents "$RPI" /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf \
   "ExecStartPre=/usr/local/sbin/opencode-password-check.sh"
 

@@ -65,7 +65,7 @@ storage:
           [Service]${OPENCODE_LAN_GUARD}
     # Read at boot by firewall-setup.sh, and by hardening-check.sh over SSH, so
     # both see the mode the box was actually rendered with.
-    - path: /etc/opencode/firewall.env
+    - path: /etc/pocketbastion/firewall.env
       mode: 0644
       contents:
         inline: |
@@ -98,10 +98,10 @@ storage:
       mode: 0644
       contents:
         local: files/etc/containers/systemd/users/1000/opencode.build
-    - path: /etc/opencode/Containerfile
+    - path: /etc/pocketbastion/Containerfile
       mode: 0644
       contents:
-        local: files/etc/opencode/Containerfile
+        local: files/etc/pocketbastion/Containerfile
     - path: /usr/local/sbin/firewall-setup.sh
       mode: 0750
       contents:
@@ -121,7 +121,7 @@ storage:
     # render time. git-setup.sh installs it as the container's ~/.gitconfig.
     # core.sshCommand forces our ssh config: ssh looks in the passwd home (/root),
     # not $HOME (/data), so /data/.ssh/config would otherwise be ignored.
-    - path: /etc/opencode/gitconfig
+    - path: /etc/pocketbastion/gitconfig
       mode: 0644
       contents:
         inline: |

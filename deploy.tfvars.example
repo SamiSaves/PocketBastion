@@ -13,6 +13,6 @@
 coreos_image_slug    = "REPLACE_ME"
 region               = "ams3"
 droplet_size         = "s-2vcpu-2gb"
-droplet_name         = "opencode-dev-server"
+droplet_name         = "pocketbastion"
 state_volume_size_gb = 20
 project_name         = "PocketBastion"

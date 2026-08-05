@@ -7,5 +7,5 @@ Wants=network-online.target
 
 [Build]
 ImageTag=localhost/opencode:latest
-File=/etc/opencode/Containerfile
-SetWorkingDirectory=/etc/opencode
+File=/etc/pocketbastion/Containerfile
+SetWorkingDirectory=/etc/pocketbastion

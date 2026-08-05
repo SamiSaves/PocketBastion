@@ -2,7 +2,7 @@
 # ip.sh — print the IP address of the local KVM dev VM.
 set -euo pipefail
 
-VM_NAME="opencode-dev-server-local"
+VM_NAME="pocketbastion-local"
 
 IP=$(virsh --connect qemu:///system domifaddr "$VM_NAME" --source lease \
   | awk '/ipv4/ {split($4, a, "/"); print a[1]}' \
