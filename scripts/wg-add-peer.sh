@@ -36,8 +36,7 @@ fi
 PUBLIC_KEY="$PUBKEY"
 # Set SERVER_HOST for the bootstrap, before your own tunnel is up:
 #   SERVER_HOST="$(scripts/local/ip.sh)" make wg-add-peer ...
-. "$(dirname "$0")/lib/server-host.sh"
-VM_IP="$(server_host)"
+VM_IP="${SERVER_HOST:-10.44.0.1}"
 
 if ssh -o StrictHostKeyChecking=no "core@${VM_IP}" \
     grep -qF "$PUBLIC_KEY" /mnt/state/wireguard/peers.conf 2>/dev/null; then

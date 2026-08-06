@@ -12,6 +12,11 @@ TF_DIR       := terraform/digitalocean
 TFVARS       := $(abspath deploy.tfvars)
 DEPLOY_ENV   := $(abspath deploy.env)
 
+# Where the management targets connect. An environment variable wins; otherwise
+# deploy.env; otherwise each script falls back to the WireGuard address.
+SERVER_HOST ?= $(shell . $(DEPLOY_ENV) 2>/dev/null; printf '%s' "$$SERVER_HOST")
+export SERVER_HOST
+
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'

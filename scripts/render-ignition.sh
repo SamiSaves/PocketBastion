@@ -18,8 +18,9 @@ YQ_IMAGE="docker.io/mikefarah/yq"
 OUT_DIR="${IGNITION_OUT_DIR:-${REPO_ROOT}/config/ignition}"
 
 OPENCODE_UI_PORT=4096
-# shellcheck source=lib/constants.sh
-. "${REPO_ROOT}/scripts/lib/constants.sh"   # WG_SERVER_IP
+# The server's address inside the tunnel. Must match the `Address =` line in
+# config/butane/files/usr/local/sbin/wg-setup.sh, which is shipped verbatim.
+WG_SERVER_IP=10.44.0.1
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
