@@ -103,9 +103,8 @@ Find it on the network (hostname `pocketbastion-rpi`) and `ssh core@<ip>`.
 
 Everything here lives on `/mnt/state` and survives reflashes.
 
-**In `lan` mode OpenCode will not start until you set a password.** The UI is
-plaintext HTTP on your LAN, so it is the only credential in front of it;
-`opencode-password-check.sh` rejects anything shorter than 12 characters.
+**Set an OpenCode server password.** In `lan` mode the UI is plaintext HTTP on
+your LAN, so it is the only credential in front of an agent with a shell.
 
 ```bash
 printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \

@@ -24,9 +24,8 @@ setting, `NETWORK_MODE`:
 | Use for | Anything on the public internet | A Pi on your own LAN |
 
 `wireguard` is the default and the safe answer. In `lan` mode the render
-**refuses** to produce a config without `TRUSTED_CIDRS`, rejects `0.0.0.0/0`,
-and the OpenCode container refuses to start without a server password — the UI
-is plaintext HTTP in that mode.
+**refuses** to produce a config without `TRUSTED_CIDRS` and rejects `0.0.0.0/0`.
+The UI is plaintext HTTP in that mode, so set a server password on the box.
 
 Each `deploy.env` picks one mode. For a second box in a different mode, copy it
 and point the render at the copy:
@@ -124,9 +123,8 @@ printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \
 chmod 600 /mnt/state/secrets/opencode.env
 ```
 
-In `lan` mode this is **mandatory** — the container refuses to start without it,
-and rejects passwords shorter than 12 characters. In `wireguard` mode the tunnel
-is the credential, but set one anyway.
+In `lan` mode this is the only credential in front of the UI, which is plaintext
+HTTP there. In `wireguard` mode the tunnel is the credential, but set one anyway.
 
 Optionally add provider keys to the same file, one per line
 (`ANTHROPIC_API_KEY=…`, `OPENAI_API_KEY=…`).
@@ -256,8 +254,9 @@ asserted at render time only.
 - **`lan` mode:** SSH and the published ports are opened to `TRUSTED_CIDRS`
   only; everything else is dropped. The render refuses an empty `TRUSTED_CIDRS`
   or `0.0.0.0/0`, and if `firewall.env` is ever hand-edited into that state the
-  firewall applies a full lockdown rather than opening up. The OpenCode
-  container will not start without a server password of at least 12 characters.
+  firewall applies a full lockdown rather than opening up. The OpenCode UI is
+  plaintext HTTP in this mode, so its server password is the only credential in
+  front of it — nothing enforces that you set one.
 - The WireGuard **server** key is generated on first boot, stored on `/mnt/state`,
   and reused across rebuilds — teardown does not force clients to reconfigure.
   Only wiping the state disk/volume regenerates it.

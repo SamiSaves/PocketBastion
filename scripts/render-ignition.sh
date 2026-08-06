@@ -151,7 +151,6 @@ case "$NETWORK_MODE" in
   wireguard)
     resolve_bootstrap_peer
     resolve_publish "$WG_SERVER_IP"
-    OPENCODE_LAN_GUARD=""
     TRUSTED_CIDRS=""
     WG_LAYER="/w/features/wireguard.bu"
     ;;
@@ -160,11 +159,10 @@ case "$NETWORK_MODE" in
     # The LAN address is DHCP-assigned and unknown at render time, so bind
     # everywhere and let nftables restrict the source.
     resolve_publish "0.0.0.0"
-    OPENCODE_LAN_GUARD=$'\n          ExecStartPre=/usr/local/sbin/opencode-password-check.sh'
     ;;
   *) die "NETWORK_MODE='${NETWORK_MODE}' is not valid. Use 'wireguard' or 'lan'." ;;
 esac
-export NETWORK_MODE OPENCODE_LAN_GUARD TRUSTED_CIDRS
+export NETWORK_MODE TRUSTED_CIDRS
 
 # An explicit whitelist, so shell-looking text in the configs (e.g. "$SIZE" in
 # swapfile-setup.sh) survives untouched.
@@ -172,7 +170,7 @@ export NETWORK_MODE OPENCODE_LAN_GUARD TRUSTED_CIDRS
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}
             ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
-            ${OPENCODE_LAN_GUARD} ${NETWORK_MODE} ${TRUSTED_CIDRS}
+            ${NETWORK_MODE} ${TRUSTED_CIDRS}
             ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
 
 render() {

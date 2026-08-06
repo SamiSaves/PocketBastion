@@ -52,19 +52,14 @@ storage:
       contents:
         local: files/etc/containers/systemd/users/1000/opencode.container
     # Butane reads `contents.local` files verbatim, so they never pass through
-    # envsubst. Anything rendered has to be an `inline` dropin like these two.
+    # envsubst. Anything rendered has to be an `inline` dropin like this one.
     - path: /etc/containers/systemd/users/1000/opencode.container.d/10-render.conf
       mode: 0644
       contents:
         inline: |
           [Container]${OPENCODE_PUBLISH}${OPENCODE_MEMORY_ARGS}
-    - path: /etc/containers/systemd/users/1000/opencode.container.d/20-lan-guard.conf
-      mode: 0644
-      contents:
-        inline: |
-          [Service]${OPENCODE_LAN_GUARD}
-    # Read at boot by firewall-setup.sh, and by hardening-check.sh over SSH, so
-    # both see the mode the box was actually rendered with.
+    # Read at boot by firewall-setup.sh, so the box firewalls itself with the
+    # mode it was actually rendered with.
     - path: /etc/pocketbastion/firewall.env
       mode: 0644
       contents:
@@ -106,11 +101,6 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/firewall-setup.sh
-    # Wired in as an ExecStartPre only in lan mode, via the 20-lan-guard dropin.
-    - path: /usr/local/sbin/opencode-password-check.sh
-      mode: 0755
-      contents:
-        local: files/usr/local/sbin/opencode-password-check.sh
     # Regenerates git/ssh config from the deploy keys on the state disk (run at
     # boot and by repo-add/repo-remove). Source of truth is the keys, not this.
     - path: /usr/local/sbin/git-setup.sh

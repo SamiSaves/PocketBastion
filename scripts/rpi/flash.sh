@@ -258,6 +258,6 @@ cat <<EOF
 Done. FCOS ${FCOS_RELEASE} written to ${DEVICE}.
 
 Put the card in the Pi, attach ethernet, power on. First boot takes 3-5 minutes,
-then ssh core@pocketbastion-rpi. In lan mode OpenCode will not start until
-OPENCODE_SERVER_PASSWORD is set — see docs/raspberry-pi.md.
+then ssh core@pocketbastion-rpi. See docs/raspberry-pi.md for the setup that
+follows.
 EOF
