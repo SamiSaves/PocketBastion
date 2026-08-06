@@ -2,9 +2,9 @@
 # Renders and applies the nftables ruleset, reading its mode and parameters from
 # /etc/pocketbastion/firewall.env (written by scripts/render-ignition.sh).
 #
-# Fails CLOSED: an unknown mode, or lan mode with no TRUSTED_CIDRS, applies a
-# lockdown ruleset. Fedora CoreOS ships no default ruleset, so exiting non-zero
-# here would leave the box wide open.
+# Fails CLOSED: an unknown mode, lan mode with no TRUSTED_CIDRS, or a ruleset
+# nft rejects all end in a lockdown ruleset. Fedora CoreOS ships no default
+# ruleset, so exiting non-zero here would leave the box wide open.
 set -euo pipefail
 
 FW_ENV=/etc/pocketbastion/firewall.env
@@ -32,21 +32,9 @@ nft_set() {
   printf '{ %s }' "$out"
 }
 
-# IPv4 only: every service binds 0.0.0.0, so an `ip6 saddr` rule would open
-# ports nothing listens on. render-ignition.sh already refuses a v6 entry, so
-# one can only appear here if firewall.env was hand-edited. Drop it rather than
-# emit a rule nft rejects — a rejected file fails `nft -f` and, under set -e,
-# would leave the box with no ruleset at all.
-CIDRS=""
-for cidr in ${TRUSTED_CIDRS:-}; do
-  if [[ "$cidr" == *:* ]]; then
-    echo "WARNING: ignoring IPv6 entry '${cidr}' in TRUSTED_CIDRS; IPv4 only." >&2
-  else
-    CIDRS+="${CIDRS:+ }${cidr}"
-  fi
-done
-
-MODE_RULES=""
+# Empty MODE_RULES is the lockdown ruleset: nothing beyond lo, established and
+# ICMP is accepted. Both error paths below fall through to it.
+MODE_RULES="    # Nothing is trusted."
 BANNER=""
 
 case "$NETWORK_MODE" in
@@ -60,24 +48,23 @@ EOF
     ;;
 
   lan)
-    if [[ -z "$CIDRS" ]]; then
-      echo "ERROR: NETWORK_MODE=lan with no usable IPv4 TRUSTED_CIDRS. Locking down." >&2
+    if [[ -z "${TRUSTED_CIDRS// /}" ]]; then
+      echo "ERROR: NETWORK_MODE=lan with no TRUSTED_CIDRS. Locking down." >&2
       BANNER="LOCKDOWN — lan mode with no TRUSTED_CIDRS"
-      MODE_RULES="    # Nothing is trusted."
     else
-      BANNER="lan — SSH and OpenCode open to ${CIDRS}"
-      MODE_RULES="    ip saddr $(nft_set "$CIDRS") tcp dport $(nft_set "22 ${OPENCODE_PORTS}") accept"
+      BANNER="lan — SSH and OpenCode open to ${TRUSTED_CIDRS}"
+      MODE_RULES="    ip saddr $(nft_set "$TRUSTED_CIDRS") tcp dport $(nft_set "22 ${OPENCODE_PORTS}") accept"
     fi
     ;;
 
   *)
     echo "ERROR: unknown NETWORK_MODE='${NETWORK_MODE}'. Locking down." >&2
     BANNER="LOCKDOWN — unknown NETWORK_MODE '${NETWORK_MODE}'"
-    MODE_RULES="    # Nothing is trusted."
     ;;
 esac
 
-cat > "$NFT_CONF" << EOF
+write_ruleset() {  # <mode-rules>
+  cat > "$NFT_CONF" << EOF
 #!/usr/sbin/nft -f
 # Rendered by firewall-setup.sh (mode: ${NETWORK_MODE}) — do not edit by hand.
 flush ruleset
@@ -93,7 +80,7 @@ table inet pocketbastion {
     ip protocol icmp accept
     ip6 nexthdr ipv6-icmp accept
 
-${MODE_RULES}
+$1
   }
 
   chain forward {
@@ -105,6 +92,18 @@ ${MODE_RULES}
   }
 }
 EOF
+}
 
-nft -f "$NFT_CONF"
+write_ruleset "$MODE_RULES"
+
+# nft -f is atomic, so a rejected file leaves the PREVIOUS ruleset in place —
+# which on boot is none at all. Anything malformed in firewall.env lands here
+# (a hand-edited IPv6 CIDR, a bad port), so fall back rather than exit.
+if ! nft -f "$NFT_CONF"; then
+  echo "ERROR: nft rejected the generated ruleset. Locking down." >&2
+  BANNER="LOCKDOWN — generated ruleset was invalid"
+  write_ruleset "    # Nothing is trusted."
+  nft -f "$NFT_CONF"
+fi
+
 echo "Firewall applied (${BANNER})."
