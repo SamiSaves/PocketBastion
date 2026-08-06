@@ -1,10 +1,9 @@
-.PHONY: help ignition-local ignition-do ignition-rpi ignition-all validate \
+.PHONY: help ignition-local ignition-do ignition-rpi validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
-        rpi-flash rpi-selftest \
+        rpi-flash \
         wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
         tf-plan tf-apply tf-destroy \
-        harden-check \
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
@@ -28,16 +27,10 @@ ignition-do: ## Render DigitalOcean Ignition config from Butane
 ignition-rpi: ## Render Raspberry Pi Ignition config from Butane
 	@bash scripts/render-ignition.sh rpi
 
-ignition-all: ## Render every platform's Ignition config
-	@bash scripts/render-ignition.sh all
-
 # ── Validation ──────────────────────────────────────────────────────────────
 
 validate: ## Validate scripts and configs
 	@./scripts/validate.sh
-
-harden-check: ## Runtime hardening checks against the live server
-	@./scripts/hardening-check.sh
 
 # ── Local VM lifecycle ───────────────────────────────────────────────────────
 
@@ -63,9 +56,6 @@ local-console: ## Open serial console for local VM
 
 rpi-flash: ## Flash FCOS + U-Boot to a microSD, preserving /mnt/state  (DEVICE=/dev/sdX)
 	@./scripts/rpi/flash.sh "$(DEVICE)"
-
-rpi-selftest: ## Prove the flash preserves /mnt/state, using a loopback file (no SD card)
-	@./scripts/rpi/selftest.sh
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

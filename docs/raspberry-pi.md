@@ -71,9 +71,6 @@ instead, at no cost in writes.
 ## 3. Flash
 
 ```bash
-# Prove preservation works without touching your real card (~5 min)
-make rpi-selftest
-
 # Find the device — do not assume, it moves between reboots
 lsblk -o NAME,SIZE,TYPE,LABEL,MOUNTPOINT
 
@@ -120,20 +117,14 @@ systemctl --user restart opencode.service
 Add provider keys to the same file, one per line (`ANTHROPIC_API_KEY=…`). For
 interactive logins: `podman exec -it opencode opencode auth login`.
 
-Then verify the security model from your laptop with `make harden-check`.
-
 ## 5. Day-to-day
 
 ```bash
 make repo-add REPO=git@github.com:owner/name.git
-make harden-check
 ```
 
 To change anything in `deploy.env`, re-flash. Repos, sessions, caches, secrets
 and deploy keys are all on `/mnt/state` and come back untouched.
-
-Test targets (`make validate`, `make rpi-selftest`, `make harden-check`) are
-described in the [README](../README.md#testing).
 
 ## 6. Two things that must not change
 

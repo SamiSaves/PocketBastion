@@ -43,17 +43,8 @@ done
 [[ -b "$DEVICE" ]] || err "$DEVICE is not a block device."
 
 devtype="$(lsblk -dno TYPE "$DEVICE" 2>/dev/null || true)"
-case "$devtype" in
-  disk) ;;
-  loop)
-    [[ "${RPI_FLASH_ALLOW_LOOP:-}" == "1" ]] \
-      || err "$DEVICE is a loop device. Set RPI_FLASH_ALLOW_LOOP=1 if you meant that (see scripts/rpi/selftest.sh)."
-    warn "Operating on loop device $DEVICE — test mode."
-    ;;
-  *)
-    err "$DEVICE is type '${devtype:-unknown}', not a whole disk. Pass the disk (/dev/sdb), not a partition (/dev/sdb1)."
-    ;;
-esac
+[[ "$devtype" == "disk" ]] \
+  || err "$DEVICE is type '${devtype:-unknown}', not a whole disk. Pass the disk (/dev/sdb), not a partition (/dev/sdb1)."
 
 # `lsblk -no PKNAME` returns empty for LVM-on-LUKS roots, silently disabling the
 # guard on common desktop installs. `lsblk -s` walks lvm -> crypt -> part -> disk.
@@ -79,8 +70,7 @@ if [[ -n "$mounted" ]]; then
 fi
 
 devname="$(basename "$DEVICE")"
-if [[ "$devtype" != "loop" ]] \
-   && [[ -r "/sys/block/${devname}/removable" ]] \
+if [[ -r "/sys/block/${devname}/removable" ]] \
    && [[ "$(cat "/sys/block/${devname}/removable")" != "1" ]]; then
   warn "$DEVICE is not reported as removable. Double-check this is your SD card."
 fi
@@ -93,13 +83,8 @@ echo
 echo "The GPT partition named '${STATE_PARTLABEL}' (if present) will be PRESERVED."
 echo "Everything else on the device will be destroyed."
 echo
-# Honoured for loop devices only, so it can never skip confirmation on a real disk.
-if [[ "$devtype" == "loop" && "${RPI_FLASH_ASSUME_YES:-}" == "1" ]]; then
-  echo "Auto-confirmed (loop device, RPI_FLASH_ASSUME_YES=1)."
-else
-  read -r -p "Type the device path (${DEVICE}) to confirm: " CONFIRM < /dev/tty
-  [[ "$CONFIRM" == "$DEVICE" ]] || err "Aborted."
-fi
+read -r -p "Type the device path (${DEVICE}) to confirm: " CONFIRM < /dev/tty
+[[ "$CONFIRM" == "$DEVICE" ]] || err "Aborted."
 
 read_state_start() {
   sudo sfdisk --json "$1" 2>/dev/null \

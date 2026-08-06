@@ -204,7 +204,6 @@ Platform lifecycle commands live in the platform guides
 [Raspberry Pi](docs/raspberry-pi.md#5-day-to-day)). Common targets:
 
 ```bash
-make harden-check       # assert the live box matches the security model
 make wg-server-pubkey   # fetch the server WireGuard key (wireguard mode)
 make validate           # static checks: shellcheck, systemd, render
 make help               # full list of targets
@@ -237,14 +236,14 @@ rejects it.
 
 ```bash
 make validate       # shellcheck, systemd-analyze, render every platform/mode
-make rpi-selftest   # Pi flash preserves /mnt/state, against a loopback file
-make harden-check   # runtime assertions against the live box
 ```
 
-`make validate` renders all three platforms in both modes and asserts the result,
-including that the fail-closed paths actually *fail*: `lan` with no
-`TRUSTED_CIDRS`, `TRUSTED_CIDRS=0.0.0.0/0`, `lan` on a public droplet, and an
-unknown `NETWORK_MODE` are all refused.
+`make validate` renders all three platforms and asserts the layering: that every
+shared block reaches every platform, that each platform gets only its own disk
+layout, and that `lan` mode emits no WireGuard file, unit or address at all.
+
+There is no runtime hardening check yet — the box's security properties are
+asserted at render time only.
 
 ## Security notes
 

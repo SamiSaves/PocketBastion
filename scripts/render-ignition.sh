@@ -5,7 +5,7 @@
 #
 # deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
 #
-# Usage:   scripts/render-ignition.sh [local|do|rpi|all]   (default: local)
+# Usage:   scripts/render-ignition.sh [local|do|rpi]   (default: local)
 # Requires: podman, envsubst (gettext)
 set -euo pipefail
 
@@ -199,13 +199,8 @@ case "${1:-local}" in
   local) render local "${OUT_DIR}/local.ign" ;;
   do|digitalocean) render digitalocean "${OUT_DIR}/digitalocean.ign" ;;
   rpi) render rpi "${OUT_DIR}/rpi.ign" ;;
-  all)
-    render local "${OUT_DIR}/local.ign"
-    render digitalocean "${OUT_DIR}/digitalocean.ign"
-    render rpi "${OUT_DIR}/rpi.ign"
-    ;;
   *)
-    echo "Usage: $0 [local|do|rpi|all]" >&2
+    echo "Usage: $0 [local|do|rpi]" >&2
     exit 1
     ;;
 esac
