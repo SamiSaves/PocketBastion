@@ -24,12 +24,14 @@ fi
 
 install -d -m 0755 /etc/nftables
 
-# "a b" -> "{ a, b }". Loops rather than "${s// /, }" so stray whitespace cannot
-# produce a trailing comma: nft would reject the file and leave the box unfiltered.
+# "a  b " -> "{ a,b }". Word-splits rather than "${s// /,}" so stray whitespace
+# cannot produce a trailing comma: nft would reject the file, and on boot that
+# leaves the box unfiltered.
 nft_set() {
-  local out=""
-  for item in $1; do out+="${out:+, }$item"; done
-  printf '{ %s }' "$out"
+  # shellcheck disable=SC2086  # deliberate split
+  set -- $1
+  local IFS=,
+  printf '{ %s }' "$*"
 }
 
 # Empty MODE_RULES is the lockdown ruleset: nothing beyond lo, established and
