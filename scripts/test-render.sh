@@ -64,11 +64,9 @@ for ign_file in "$LOCAL" "$DO" "$RPI"; do
   # shellcheck disable=SC2016
   assert '\$6\$uxZJIlbecCN0'                                      "$ign_file"
 
-  # The WireGuard feature layer.
-  assert "/usr/local/sbin/wg-setup.sh"                            "$ign_file"
+  # The WireGuard feature layer: one file, one unit — the layer merges whole.
   assert "/etc/wireguard/bootstrap-peer.conf"                     "$ign_file"
   assert "wg-quick@wg0.service"                                   "$ign_file"
-  assert "wg-setup.service"                                       "$ign_file"
 done
 
 assert "/etc/containers/systemd/users/1000/hello.container" "$LOCAL"
@@ -84,16 +82,14 @@ assert "by-partlabel/state"        "$RPI"
 refute "hello.container"           "$RPI"
 # The one disk-layout invariant that costs data if broken: an omitted sizeMiB
 # makes Ignition adopt the existing partition. See docs/raspberry-pi.md.
-python3 -c 'import json,sys; p=[x for x in json.load(open(sys.argv[1]))["storage"]["disks"][0]["partitions"] if x.get("label")=="state"][0]; sys.exit("sizeMiB" in p)' "$RPI" \
+jq -e '.storage.disks[0].partitions[] | select(.label=="state") | has("sizeMiB") | not' "$RPI" >/dev/null \
   || bad "rpi state partition specifies sizeMiB; a reflash would abort in the initramfs"
 
 echo "== lan mode: rpi ships no WireGuard at all"
 render rpi NETWORK_MODE=lan 'TRUSTED_CIDRS="192.168.1.0/24"' >/dev/null
 
-refute "/usr/local/sbin/wg-setup.sh"        "$RPI"
 refute "/etc/wireguard/bootstrap-peer.conf" "$RPI"
 refute "wg-quick@wg0.service"               "$RPI"
-refute "wg-setup.service"                   "$RPI"
 refute "10.44.0.1"                          "$RPI"
 
 if [[ "$fail" -ne 0 ]]; then
