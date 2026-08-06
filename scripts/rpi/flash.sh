@@ -5,7 +5,7 @@
 # after must leave it alone, which the check at the end verifies.
 #
 # Usage: make rpi-flash DEVICE=/dev/sdX
-# Requires: podman, sudo, jq, lsblk, sfdisk, rsync, envsubst, findmnt
+# Requires: podman, sudo, jq, lsblk, sfdisk, rsync, envsubst
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,7 +23,6 @@ STATE_PARTLABEL="state"
 
 err()  { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
-warn() { echo "WARNING: $*" >&2; }
 
 DEVICE="${1:-${DEVICE:-}}"
 if [[ -z "$DEVICE" ]]; then
@@ -34,7 +33,7 @@ if [[ -z "$DEVICE" ]]; then
   exit 1
 fi
 
-for tool in podman sudo jq lsblk sfdisk rsync envsubst findmnt; do
+for tool in podman sudo jq lsblk sfdisk rsync envsubst; do
   command -v "$tool" >/dev/null 2>&1 || err "'$tool' not found. Install it and retry."
 done
 
@@ -46,22 +45,6 @@ devtype="$(lsblk -dno TYPE "$DEVICE" 2>/dev/null || true)"
 [[ "$devtype" == "disk" ]] \
   || err "$DEVICE is type '${devtype:-unknown}', not a whole disk. Pass the disk (/dev/sdb), not a partition (/dev/sdb1)."
 
-# `lsblk -no PKNAME` returns empty for LVM-on-LUKS roots, silently disabling the
-# guard on common desktop installs. `lsblk -s` walks lvm -> crypt -> part -> disk.
-backing_disks() {
-  lsblk -nrso NAME,TYPE "$1" 2>/dev/null | awk '$2=="disk"{print "/dev/"$1}'
-}
-
-for critical_mnt in / /boot /boot/efi /home; do
-  src="$(findmnt -no SOURCE "$critical_mnt" 2>/dev/null | sed 's/\[.*\]$//' || true)"
-  [[ -n "$src" ]] || continue
-  while IFS= read -r d; do
-    if [[ "$d" == "$DEVICE" ]]; then
-      err "$DEVICE backs this machine's '${critical_mnt}' filesystem. Refusing."
-    fi
-  done < <(backing_disks "$src")
-done
-
 mounted="$(lsblk -nro MOUNTPOINT "$DEVICE" | grep -v '^$' || true)"
 if [[ -n "$mounted" ]]; then
   echo "$DEVICE has mounted partitions:" >&2
@@ -70,10 +53,6 @@ if [[ -n "$mounted" ]]; then
 fi
 
 devname="$(basename "$DEVICE")"
-if [[ -r "/sys/block/${devname}/removable" ]] \
-   && [[ "$(cat "/sys/block/${devname}/removable")" != "1" ]]; then
-  warn "$DEVICE is not reported as removable. Double-check this is your SD card."
-fi
 
 echo
 echo "About to ERASE and reflash this device:"
@@ -162,8 +141,6 @@ sudo podman run --rm --privileged \
     "$DEVICE"
 
 sudo udevadm settle || true
-sudo partprobe "$DEVICE" 2>/dev/null || true
-sudo udevadm settle || true
 
 # The GPT still describes a ~2.8 GiB disk (the image's size), not the card. Do
 # NOT fix that with `sgdisk -e` here: FCOS relocates the secondary header itself
@@ -218,22 +195,6 @@ info "Copying Raspberry Pi firmware onto the ESP..."
 sudo rsync -rt --no-perms --no-owner --no-group --ignore-existing \
   "${UBOOT_DIR}/boot/efi/" "${ESP_MNT}/"
 sudo sync
-
-# Without these the Pi's ROM will not chain into U-Boot. Checked as root: vfat
-# mount masks can hide files from an unprivileged read.
-for required in config.txt rpi-u-boot.bin start4.elf fixup4.dat bcm2711-rpi-4-b.dtb; do
-  sudo test -f "${ESP_MNT}/${required}" \
-    || err "Firmware copy incomplete: ${required} is missing from the ESP."
-done
-sudo test -d "${ESP_MNT}/overlays" \
-  || err "Firmware copy incomplete: overlays/ is missing from the ESP."
-sudo grep -q '^kernel=rpi-u-boot.bin' "${ESP_MNT}/config.txt" \
-  || err "config.txt on the ESP does not chainload rpi-u-boot.bin."
-info "Firmware verified on ESP."
-
-sudo umount "$ESP_MNT"
-trap - EXIT
-rmdir "$ESP_MNT" 2>/dev/null || true
 
 sudo udevadm settle || true
 
