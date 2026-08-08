@@ -2,8 +2,10 @@
 # the image before the container starts.
 [Unit]
 Description=Build the OpenCode container image
-After=network-online.target
-Wants=network-online.target
+# User-scope Quadlet: there is no network-online.target in a user manager, so
+# naming it here was a silent no-op and the build could start before DHCP.
+After=podman-user-wait-network-online.service
+Wants=podman-user-wait-network-online.service
 
 [Build]
 ImageTag=localhost/opencode:latest

@@ -6,11 +6,13 @@
 
 # ?= so `DEPLOY_ENV=deploy.vm.env make repo-add` reads SERVER_HOST from the file
 # it renders from. With := the env var lost and the target hit the wrong box.
-DEPLOY_ENV   ?= $(abspath deploy.env)
+DEPLOY_ENV   ?= deploy.env
 
 # Where the management targets connect. An environment variable wins; otherwise
 # deploy.env. Each script errors if it ends up empty.
-SERVER_HOST ?= $(shell . $(DEPLOY_ENV) 2>/dev/null; printf '%s' "$$SERVER_HOST")
+# abspath because $(shell) runs under /bin/sh, whose `.` does not search the cwd
+# for a slashless path: a relative DEPLOY_ENV would silently source nothing.
+SERVER_HOST ?= $(shell . "$(abspath $(DEPLOY_ENV))" 2>/dev/null; printf '%s' "$$SERVER_HOST")
 export SERVER_HOST
 
 help: ## Show this help

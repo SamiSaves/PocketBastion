@@ -48,7 +48,8 @@ resolve_trusted_cidrs() {
          TRUSTED_CIDRS=\"192.168.1.0/24\""
 
   for cidr in "$@"; do
-    [[ "$cidr" != 0.0.0.0/0 ]] \
+    # 0/0 is the shorthand form; nft accepts it just as happily as 0.0.0.0/0.
+    [[ "$cidr" != 0.0.0.0/0 && "$cidr" != 0/0 ]] \
       || die "TRUSTED_CIDRS contains '${cidr}', which trusts every host that can
        route to this box. This box has no VPN of its own and the UI is plain
        HTTP; name the networks you actually trust."
@@ -79,6 +80,12 @@ resolve_publish() {
 # Sizes are passed through as written: podman, systemd and zram-generator each
 # reject a malformed one with a better message than this script could give.
 OPENCODE_MEMORY_ARGS=""
+# podman rejects --memory-swap without -m, so the swap cap is nested under the
+# max. Without this, setting only the swap would render no cap at all, silently.
+[[ -z "${OPENCODE_MEMORY_SWAP:-}" || -n "${OPENCODE_MEMORY_MAX:-}" ]] \
+  || die "OPENCODE_MEMORY_SWAP is set without OPENCODE_MEMORY_MAX in ${DEPLOY_ENV}.
+       podman needs the memory cap to apply a swap cap, so the container would
+       end up with neither. Set both, or leave both empty."
 if [[ -n "${OPENCODE_MEMORY_MAX:-}" ]]; then
   _mem_args="--memory=${OPENCODE_MEMORY_MAX}"
   if [[ -n "${OPENCODE_MEMORY_SWAP:-}" ]]; then

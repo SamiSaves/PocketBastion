@@ -3,7 +3,7 @@ config/ignition/*.ign
 images/
 
 # Top-level editable deploy config (real file; the *.example template is tracked)
-/deploy.env
+/deploy*.env
 
 # Local secrets — SSH keys, deploy keys (never commit)
 secrets/

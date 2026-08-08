@@ -154,7 +154,6 @@ systemd:
     - name: git-setup.service
       enabled: true
       contents_local: files/systemd/base/git-setup.service
-    # Ordered after the state mount, to read the persistent toggle override.
     - name: firewall.service
       enabled: true
       contents_local: files/systemd/base/firewall.service

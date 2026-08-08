@@ -18,17 +18,22 @@ TRUSTED_CIDRS=""
 OPENCODE_PORTS=""
 
 if [[ -r "$FW_ENV" ]]; then
+  # The one command here that can fail. A half-sourced file can leave
+  # TRUSTED_CIDRS partly assigned, so reset both rather than trust what landed.
   # shellcheck source=/dev/null
-  source "$FW_ENV"
+  source "$FW_ENV" || {
+    echo "WARNING: $FW_ENV did not parse. Locking down." >&2
+    TRUSTED_CIDRS=""
+    OPENCODE_PORTS=""
+  }
 else
   echo "WARNING: $FW_ENV missing. Locking down." >&2
 fi
 
 install -d -m 0755 /etc/nftables
 
-# "a  b " -> "{ a,b }". Word-splits rather than "${s// /,}" so stray whitespace
-# cannot produce a trailing comma: nft would reject the file, and on boot that
-# leaves the box unfiltered.
+# "a  b " -> "{ a,b }". Word-splits rather than "${s// /,}" so runs of spaces and
+# leading/trailing whitespace normalise away instead of becoming empty elements.
 nft_set() {
   # shellcheck disable=SC2086  # deliberate split
   set -- $1

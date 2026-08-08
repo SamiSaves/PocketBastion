@@ -71,6 +71,8 @@ render TRUSTED_CIDRS= >/dev/null 2>&1 \
   && bad "an empty TRUSTED_CIDRS rendered instead of being refused"
 render 'TRUSTED_CIDRS="0.0.0.0/0"' >/dev/null 2>&1 \
   && bad "TRUSTED_CIDRS=0.0.0.0/0 rendered instead of being refused"
+render 'TRUSTED_CIDRS="0/0"' >/dev/null 2>&1 \
+  && bad "TRUSTED_CIDRS=0/0 rendered instead of being refused"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "test-render: assertions FAILED" >&2

@@ -1,7 +1,5 @@
 [Unit]
 Description=Render and apply nftables firewall rules
-After=var-mnt-state.mount state-dirs.service
-Requires=state-dirs.service
 
 [Service]
 Type=oneshot

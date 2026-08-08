@@ -41,7 +41,7 @@ if [[ -z "$DEVICE" ]]; then
   exit 1
 fi
 
-for tool in podman sudo jq lsblk sfdisk rsync envsubst; do
+for tool in podman sudo jq lsblk sfdisk rsync envsubst curl; do
   command -v "$tool" >/dev/null 2>&1 || err "'$tool' not found. Install it and retry."
 done
 
@@ -62,7 +62,10 @@ if [[ -n "$mounted" ]]; then
   err "Unmount them first."
 fi
 
-devname="$(basename "$DEVICE")"
+# readlink -f because /dev/disk/by-id/... is a symlink and /sys/block is keyed on
+# the kernel name; basename of the link gives a path that does not exist there,
+# and the size preflight below would then read 0 MiB.
+devname="$(basename "$(readlink -f "$DEVICE")")"
 
 echo
 echo "About to ERASE and reflash this device:"
@@ -82,14 +85,35 @@ else
   [[ "$CONFIRM" == "$DEVICE" ]] || err "Aborted."
 fi
 
-read_state_start() {
-  sudo sfdisk --json "$1" 2>/dev/null \
-    | jq -r --arg L "$STATE_PARTLABEL" \
-        '(.partitiontable.partitions // [])[] | select(.name == $L) | .start' \
-    | head -n1
+# Sets STATE_START to the start sector of the `state` partition, empty if the
+# card has none. Deliberately not a command substitution: a partition table we
+# cannot read is fatal, and err()'s exit inside $(...) would only kill a subshell.
+read_state_start() {  # <device>
+  local json rc=0 errfile sfdisk_err
+  errfile="$(mktemp)"
+  json="$(sudo sfdisk --json "$1" 2>"$errfile")" || rc=$?
+  sfdisk_err="$(tr '\n' ' ' < "$errfile")"
+  rm -f "$errfile"
+
+  STATE_START=""
+  if (( rc != 0 )); then
+    # An unpartitioned card is a genuine first flash. Any OTHER sfdisk failure
+    # must not be read as "no state partition" — that is how you overwrite a
+    # card holding the owner's data while reporting a first flash.
+    [[ "$sfdisk_err" == *"does not contain a recognized partition table"* ]] \
+      || err "could not read the partition table on $1: ${sfdisk_err:-sfdisk exited ${rc}}
+       That leaves no way to tell a first flash from a card holding your data.
+       Refusing to write."
+    return 0
+  fi
+
+  STATE_START="$(jq -r --arg L "$STATE_PARTLABEL" \
+      '(.partitiontable.partitions // [])[] | select(.name == $L) | .start' <<<"$json" \
+    | head -n1)"
 }
 
-PRE_STATE_START="$(read_state_start "$DEVICE" || true)"
+read_state_start "$DEVICE"
+PRE_STATE_START="$STATE_START"
 if [[ -n "$PRE_STATE_START" ]]; then
   info "Found existing '${STATE_PARTLABEL}' partition at sector ${PRE_STATE_START} — it will be preserved."
 else
@@ -229,7 +253,8 @@ lsblk -o NAME,SIZE,TYPE,PARTLABEL,LABEL,FSTYPE "$DEVICE"
 echo
 
 if [[ -n "$PRE_STATE_START" ]]; then
-  POST_STATE_START="$(read_state_start "$DEVICE" || true)"
+  read_state_start "$DEVICE"
+  POST_STATE_START="$STATE_START"
   [[ -n "$POST_STATE_START" ]] \
     || err "DATA LOSS: the '${STATE_PARTLABEL}' partition is GONE after flashing. Do not reboot the Pi; investigate."
   [[ "$POST_STATE_START" == "$PRE_STATE_START" ]] \

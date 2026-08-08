@@ -18,6 +18,12 @@ if [[ -z "$NAME" ]]; then
   echo "Usage: $0 <name> [--purge]   (name as shown by 'make repo-list')" >&2
   exit 1
 fi
+# Validate at the boundary, as repo-add.sh does: NAME is interpolated into a
+# command the remote shell re-parses, and into paths.
+if [[ ! "$NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "ERROR: '$NAME' has an unexpected name (run 'make repo-list')." >&2
+  exit 1
+fi
 
 VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
 SSH=(ssh -o StrictHostKeyChecking=accept-new "core@${VM_IP}")
