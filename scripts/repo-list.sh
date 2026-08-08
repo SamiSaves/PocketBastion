@@ -7,7 +7,7 @@ set -euo pipefail
 
 VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
 
-ssh -o StrictHostKeyChecking=no "core@${VM_IP}" 'bash -s' <<'REMOTE'
+ssh -o StrictHostKeyChecking=accept-new "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -euo pipefail
 SECRETS=/mnt/state/secrets/git
 shopt -s nullglob

@@ -4,7 +4,9 @@
         repo-add repo-list repo-remove \
         clean
 
-DEPLOY_ENV   := $(abspath deploy.env)
+# ?= so `DEPLOY_ENV=deploy.vm.env make repo-add` reads SERVER_HOST from the file
+# it renders from. With := the env var lost and the target hit the wrong box.
+DEPLOY_ENV   ?= $(abspath deploy.env)
 
 # Where the management targets connect. An environment variable wins; otherwise
 # deploy.env. Each script errors if it ends up empty.

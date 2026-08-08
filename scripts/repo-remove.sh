@@ -20,7 +20,7 @@ if [[ -z "$NAME" ]]; then
 fi
 
 VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
-SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
+SSH=(ssh -o StrictHostKeyChecking=accept-new "core@${VM_IP}")
 
 META=$("${SSH[@]}" "cat /mnt/state/secrets/git/${NAME}.meta" 2>/dev/null) || {
   echo "No such repo '$NAME'. Run 'make repo-list'." >&2

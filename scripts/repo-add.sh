@@ -37,7 +37,7 @@ NAME="$SLUG-$OWNER-$REPO"
 CANON="git@$HOST:$OWNER/$REPO.git"
 
 VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
-SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
+SSH=(ssh -o StrictHostKeyChecking=accept-new "core@${VM_IP}")
 
 # Phase 1: generate the key + meta on the VM, print the public key.
 set +e
