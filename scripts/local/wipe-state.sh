@@ -2,7 +2,7 @@
 # wipe-state.sh — permanently delete the mock VM's disk image.
 #
 # WARNING: This destroys all data in /mnt/state (repos, opencode sessions,
-# caches, WireGuard keys). There is no recovery.
+# caches, deploy keys). There is no recovery.
 #
 # On the Pi, root and state share one card; the mock is the same, so this
 # discards both. The next `make local-up` is then a FIRST flash — which is the

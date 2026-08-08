@@ -5,7 +5,7 @@
 #   make repo-list
 set -euo pipefail
 
-VM_IP="${SERVER_HOST:-10.44.0.1}"
+VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
 
 ssh -o StrictHostKeyChecking=no "core@${VM_IP}" 'bash -s' <<'REMOTE'
 set -euo pipefail

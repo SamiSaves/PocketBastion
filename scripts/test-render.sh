@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Renders the config in both network modes and asserts what the render is
-# actually responsible for: that every expected file and unit is present, and
-# that lan mode emits no WireGuard file, unit or address at all. Butane --strict
-# does the rest — a config that renders is structurally valid.
+# Renders the config and asserts what the render is actually responsible for:
+# that every expected file and unit is present, and that a missing TRUSTED_CIDRS
+# is refused rather than rendered into a wide-open box. Butane --strict does the
+# rest — a config that renders is structurally valid.
 #
 # Assertions are on file paths and unit names, which are plaintext in the
 # Ignition JSON; file contents are data-URL encoded and not asserted on.
@@ -18,8 +18,6 @@ export IGNITION_OUT_DIR="$OUT"
 # render-ignition.sh reads DEPLOY_ENV, so every case is just a throwaway file.
 cat > "$OUT/base.env" <<EOF
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAAtest render-validation-placeholder"
-WG_BOOTSTRAP_PUBKEY=$(printf '0%.0s' {1..43})=
-WG_BOOTSTRAP_IP=10.44.0.2
 GIT_USER_NAME="render validation"
 GIT_USER_EMAIL=render@validation
 OPENCODE_EXTRA_PORTS="5173"
@@ -37,12 +35,10 @@ fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 
 assert() { grep -q -- "$1" "$2" || bad "expected '$1' in $(basename "$2")"; }
-refute() { grep -q -- "$1" "$2" && bad "'$1' must NOT be in $(basename "$2")"; return 0; }
 
 IGN="$OUT/pocketbastion.ign"
 
-echo "== wireguard mode"
-render NETWORK_MODE=wireguard >/dev/null
+render 'TRUSTED_CIDRS="192.168.1.0/24"' >/dev/null
 
 assert "/usr/local/sbin/firewall-setup.sh"                      "$IGN"
 assert "/usr/local/sbin/git-setup.sh"                           "$IGN"
@@ -58,10 +54,6 @@ assert "firewall.service"                                       "$IGN"
 # shellcheck disable=SC2016
 assert '\$6\$uxZJIlbecCN0'                                      "$IGN"
 
-# The WireGuard feature layer: one file, one unit — the layer merges whole.
-assert "/etc/wireguard/bootstrap-peer.conf"                     "$IGN"
-assert "wg-quick@wg0.service"                                   "$IGN"
-
 # Disk layout. Both the Pi and the mock VM boot this, so it is asserted once.
 assert "coreos-boot-disk"   "$IGN"
 assert "by-partlabel/state" "$IGN"
@@ -73,15 +65,15 @@ jq -e '.storage.disks[0].partitions[] | select(.label=="state") | has("sizeMiB")
 jq -e '.storage.disks[0].partitions[] | select(.label=="root") | .sizeMiB == 16384' "$IGN" >/dev/null \
   || bad "root is no longer 16384 MiB; a reflash would resize into the state partition"
 
-echo "== lan mode ships no WireGuard at all"
-render NETWORK_MODE=lan 'TRUSTED_CIDRS="192.168.1.0/24"' >/dev/null
-
-refute "/etc/wireguard/bootstrap-peer.conf" "$IGN"
-refute "wg-quick@wg0.service"               "$IGN"
-refute "10.44.0.1"                          "$IGN"
+# TRUSTED_CIDRS is the only access control this box has, so a render without it
+# must fail rather than produce a config nothing filters.
+render TRUSTED_CIDRS= >/dev/null 2>&1 \
+  && bad "an empty TRUSTED_CIDRS rendered instead of being refused"
+render 'TRUSTED_CIDRS="0.0.0.0/0"' >/dev/null 2>&1 \
+  && bad "TRUSTED_CIDRS=0.0.0.0/0 rendered instead of being refused"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "test-render: assertions FAILED" >&2
   exit 1
 fi
-echo "test-render: both network modes render correctly"
+echo "test-render: config renders correctly"

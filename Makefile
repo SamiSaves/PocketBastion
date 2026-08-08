@@ -1,14 +1,13 @@
 .PHONY: help ignition validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
-        wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
         clean
 
 DEPLOY_ENV   := $(abspath deploy.env)
 
 # Where the management targets connect. An environment variable wins; otherwise
-# deploy.env; otherwise each script falls back to the WireGuard address.
+# deploy.env. Each script errors if it ends up empty.
 SERVER_HOST ?= $(shell . $(DEPLOY_ENV) 2>/dev/null; printf '%s' "$$SERVER_HOST")
 export SERVER_HOST
 
@@ -57,15 +56,6 @@ local-console: ## Open serial console for the mock VM
 clean: ## Remove generated Ignition files
 	@rm -f config/ignition/*.ign
 	@echo "Cleaned generated Ignition files."
-
-# ── WireGuard ────────────────────────────────────────────────────────────────
-# Only meaningful when NETWORK_MODE is wireguard.
-
-wg-server-pubkey: ## Fetch server WireGuard public key from the box → secrets/wireguard/server.public
-	@scripts/wg-server-pubkey.sh
-
-wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10.44.0.4 PUBKEY=<key>)
-	@scripts/wg-add-peer.sh
 
 # ── GitHub repositories ──────────────────────────────────────────────────────
 

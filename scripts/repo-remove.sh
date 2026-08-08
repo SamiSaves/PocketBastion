@@ -19,7 +19,7 @@ if [[ -z "$NAME" ]]; then
   exit 1
 fi
 
-VM_IP="${SERVER_HOST:-10.44.0.1}"
+VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
 SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
 
 META=$("${SSH[@]}" "cat /mnt/state/secrets/git/${NAME}.meta" 2>/dev/null) || {

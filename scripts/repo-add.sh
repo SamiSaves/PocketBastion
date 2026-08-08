@@ -36,7 +36,7 @@ SLUG="$(printf '%s' "$HOST" | tr -c 'a-zA-Z0-9' '-')"
 NAME="$SLUG-$OWNER-$REPO"
 CANON="git@$HOST:$OWNER/$REPO.git"
 
-VM_IP="${SERVER_HOST:-10.44.0.1}"
+VM_IP="${SERVER_HOST:?set SERVER_HOST in deploy.env (the box address; for the mock VM: make local-ip)}"
 SSH=(ssh -o StrictHostKeyChecking=no "core@${VM_IP}")
 
 # Phase 1: generate the key + meta on the VM, print the public key.

@@ -5,7 +5,7 @@ images/
 # Top-level editable deploy config (real file; the *.example template is tracked)
 /deploy.env
 
-# Local secrets — SSH keys, WireGuard keys, deploy keys (never commit)
+# Local secrets — SSH keys, deploy keys (never commit)
 secrets/
 
 # SSH keys

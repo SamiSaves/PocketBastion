@@ -103,5 +103,5 @@ filesystem, grows root, then builds the OpenCode container image.
 
   make local-console   # watch it boot / break-glass, no network needed
   make local-ip        # its address on the libvirt network
-  make local-ssh       # over the WireGuard tunnel (wireguard mode)
+  make local-ssh       # ssh core@ its libvirt address
 EOF

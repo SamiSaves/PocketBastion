@@ -13,8 +13,8 @@ What it does not cover, and never will:
 | Boot path | No U-Boot, no EEPROM, no `config.txt`. The mock boots through the VM firmware. |
 | Storage | A sparse file on your SSD, not a microSD. Nothing here will tell you about card wear or speed. |
 
-Everything above the bootloader — partitioning, the state filesystem, firewall
-mode, the OpenCode container, WireGuard, git access — is the real thing.
+Everything above the bootloader — partitioning, the state filesystem, the
+firewall, the OpenCode container, git access — is the real thing.
 
 ## Prerequisites
 
@@ -27,8 +27,8 @@ metal image itself (~1 GB, cached in `images/`) and writes the disk directly.
 
 ## Create it
 
-`deploy.env` (see the [README](../README.md)) holds your keys. In `lan` mode,
-note that the mock sits on libvirt's network, not your LAN:
+`deploy.env` (see the [README](../README.md)) holds your keys. The mock sits on
+libvirt's network, not your LAN, so `TRUSTED_CIDRS` has to say so:
 
 ```bash
 TRUSTED_CIDRS="192.168.122.0/24"
@@ -38,6 +38,12 @@ Then:
 
 ```bash
 make local-up
+```
+
+If the Pi's `deploy.env` says something else, keep it and give the mock a copy:
+
+```bash
+DEPLOY_ENV=deploy.vm.env make local-up
 ```
 
 First run allocates a sparse 64 GB image, flashes it and boots. Allow 3–5
@@ -54,31 +60,17 @@ board — memory limits and disk pressure behave the same way. Root is pinned at
 16 GiB by the config and state takes the remainder, so images below 24 GB are
 refused.
 
-## Connect your tunnel
+## Connect
 
-In `wireguard` mode the tunnel isn't up yet, so read the server's public key
-from the serial console:
-
-```bash
-make local-console
-# then: sudo cat /mnt/state/wireguard/server_public.key; Ctrl-] to exit
-```
-
-The endpoint is the VM's libvirt address:
+The mock's address is DHCP-assigned by libvirt, so `make local-ssh` looks it up
+each time rather than reading `SERVER_HOST` (which points at the real box):
 
 ```bash
-make local-ip
+make local-ssh
+make local-ip      # the address itself, e.g. for `make repo-add`
 ```
 
-Paste both into your tunnel config and bring it up — see
-[WireGuard setup](wireguard.md#3-write-your-tunnel-config). Once the tunnel is
-up, `make wg-server-pubkey` fetches the key over SSH instead of the console.
-
-In `lan` mode there is no tunnel; SSH straight to the libvirt address:
-
-```bash
-SERVER_HOST="$(scripts/local/ip.sh)" make local-ssh
-```
+If SSH does not answer, `make local-console` works without any network.
 
 Then continue with **Post-install setup** in the [README](../README.md).
 

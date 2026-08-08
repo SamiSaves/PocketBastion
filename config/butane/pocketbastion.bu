@@ -4,23 +4,15 @@ version: 1.5.0
 # the local KVM mock that rehearses it (scripts/local/create-vm.sh) boots this
 # very config, unmodified — that is the point of the mock.
 #
-# render-ignition.sh deep-merges this with any optional feature layers, using
-# `yq ... *+`, before piping the result to Butane:
-#
-#   pocketbastion.bu *+ [features/<feature>.bu ...]
-#
-# Invariant: every file path and every systemd unit name appears in exactly ONE
-# layer. `*+` appends arrays, so a path/name defined twice would produce a
-# duplicate and Butane --strict would reject it. Anything optional belongs in a
-# feature layer, never here.
+# render-ignition.sh substitutes ${VARS} from deploy.env and pipes it to Butane.
 passwd:
   users:
     # The core user (UID 1000) owns the rootless Quadlet containers; SSH key
     # injected at render time.
     #
     # password_hash is a PUBLIC default for break-glass serial console login
-    # only. Not a network credential: sshd is key-only, and in wireguard mode
-    # not reachable off the tunnel. Change it on first console login (README).
+    # only. Not a network credential: sshd is key-only and the firewall only
+    # answers TRUSTED_CIDRS. Change it on first console login (README).
     - name: core
       password_hash: "$6$uxZJIlbecCN0.R4V$uEOl0OUAciUTCoeuzZLooVYni9Mr9jHTfZRHDs8QaieEWp0o0kZJ7eviUFHeutibqDA/jAb/E/1DGDTtVuIQ51"
       ssh_authorized_keys:
@@ -75,7 +67,7 @@ storage:
       overwrite: true
       contents:
         inline: |
-          PocketBastion (network mode: ${NETWORK_MODE})
+          PocketBastion — reachable from ${TRUSTED_CIDRS}
 
           /mnt/state is the only persistent data.
           The OS is disposable: reflash to reset it.
@@ -104,12 +96,11 @@ storage:
         inline: |
           [Container]${OPENCODE_PUBLISH}${OPENCODE_MEMORY_ARGS}
     # Read at boot by firewall-setup.sh, so the box firewalls itself with the
-    # mode it was actually rendered with.
+    # networks it was actually rendered for.
     - path: /etc/pocketbastion/firewall.env
       mode: 0644
       contents:
         inline: |
-          NETWORK_MODE=${NETWORK_MODE}
           TRUSTED_CIDRS="${TRUSTED_CIDRS}"
           OPENCODE_PORTS="${OPENCODE_PORTS}"
     - path: /etc/systemd/zram-generator.conf
@@ -174,8 +165,6 @@ systemd:
       enabled: true
       contents_local: files/systemd/base/git-setup.service
     # Ordered after the state mount, to read the persistent toggle override.
-    # It must NOT be ordered against any WireGuard unit: those live in the
-    # optional feature layer and need not exist.
     - name: firewall.service
       enabled: true
       contents_local: files/systemd/base/firewall.service

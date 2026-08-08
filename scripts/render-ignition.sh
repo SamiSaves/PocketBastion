@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Renders the Butane config to Ignition JSON:
-#
-#   pocketbastion.bu *+ [features/<feature>.bu ...]
-#
-# deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
+# Renders config/butane/pocketbastion.bu to Ignition JSON: substituted from
+# ./deploy.env, piped to Butane --strict.
 #
 # Usage:   scripts/render-ignition.sh
 # Requires: podman, envsubst (gettext)
@@ -14,13 +11,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY_ENV="${DEPLOY_ENV:-${REPO_ROOT}/deploy.env}"
 BUTANE_DIR="${REPO_ROOT}/config/butane"
 BUTANE_IMAGE="quay.io/coreos/butane:release"
-YQ_IMAGE="docker.io/mikefarah/yq"
 OUT_DIR="${IGNITION_OUT_DIR:-${REPO_ROOT}/config/ignition}"
 
 OPENCODE_UI_PORT=4096
-# The server's address inside the tunnel. Must match the `Address =` line in
-# config/butane/files/usr/local/sbin/wg-setup.sh, which is shipped verbatim.
-WG_SERVER_IP=10.44.0.1
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -41,30 +34,24 @@ export SSH_AUTHORIZED_KEY
 export GIT_USER_NAME="${GIT_USER_NAME:-}"
 export GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
-# Baked into Ignition as peer #0 so the tunnel is up before SSH exists.
-resolve_bootstrap_peer() {
-  : "${WG_BOOTSTRAP_PUBKEY:?set WG_BOOTSTRAP_PUBKEY in deploy.env}"
-  : "${WG_BOOTSTRAP_IP:?set WG_BOOTSTRAP_IP in deploy.env}"
-  export WG_BOOTSTRAP_PUBKEY WG_BOOTSTRAP_IP
-}
-
 # The shape of each CIDR is deliberately NOT checked here: nft rejects anything
 # malformed and firewall-setup.sh then applies its lockdown ruleset. Only the
-# two values nft would accept happily are worth catching at render time.
+# values nft would accept happily are worth catching at render time.
 resolve_trusted_cidrs() {
   local cidr
   # shellcheck disable=SC2086  # deliberate split, also normalises whitespace
   set -- ${TRUSTED_CIDRS:-}
 
-  (($#)) || die "NETWORK_MODE=lan requires TRUSTED_CIDRS in ${DEPLOY_ENV}.
+  (($#)) || die "TRUSTED_CIDRS is not set in ${DEPLOY_ENV}.
        It is the only thing restricting who can reach SSH and the OpenCode UI.
        Example — your home LAN only:
          TRUSTED_CIDRS=\"192.168.1.0/24\""
 
   for cidr in "$@"; do
     [[ "$cidr" != 0.0.0.0/0 ]] \
-      || die "TRUSTED_CIDRS contains '${cidr}', which trusts every host on the internet.
-       If you genuinely want that, you want NETWORK_MODE=wireguard instead."
+      || die "TRUSTED_CIDRS contains '${cidr}', which trusts every host that can
+       route to this box. This box has no VPN of its own and the UI is plain
+       HTTP; name the networks you actually trust."
   done
 
   TRUSTED_CIDRS="$*"
@@ -72,14 +59,16 @@ resolve_trusted_cidrs() {
 }
 
 # The UI on 4096 is always published; OPENCODE_EXTRA_PORTS adds to it.
+# The LAN address is DHCP-assigned and unknown at render time, so bind
+# everywhere and let nftables restrict the source.
 resolve_publish() {
-  local bind_addr="$1" port
+  local port
   # shellcheck disable=SC2086  # deliberate split, also normalises whitespace
   set -- "$OPENCODE_UI_PORT" ${OPENCODE_EXTRA_PORTS:-}
 
   OPENCODE_PUBLISH=""
   for port in "$@"; do
-    OPENCODE_PUBLISH+=$'\n          PublishPort='"${bind_addr}:${port}:${port}"
+    OPENCODE_PUBLISH+=$'\n          PublishPort='"0.0.0.0:${port}:${port}"
   done
 
   OPENCODE_PORTS="$*"
@@ -109,42 +98,20 @@ export ZRAM_CONFIG
 
 export SWAPFILE_SIZE="${SWAPFILE_SIZE:-}"
 
-# The mode is the same for every platform in one render, so resolve it once.
-NETWORK_MODE="${NETWORK_MODE:-wireguard}"
-WG_LAYER=""
-case "$NETWORK_MODE" in
-  wireguard)
-    resolve_bootstrap_peer
-    resolve_publish "$WG_SERVER_IP"
-    TRUSTED_CIDRS=""
-    WG_LAYER="/w/features/wireguard.bu"
-    ;;
-  lan)
-    resolve_trusted_cidrs
-    # The LAN address is DHCP-assigned and unknown at render time, so bind
-    # everywhere and let nftables restrict the source.
-    resolve_publish "0.0.0.0"
-    ;;
-  *) die "NETWORK_MODE='${NETWORK_MODE}' is not valid. Use 'wireguard' or 'lan'." ;;
-esac
-export NETWORK_MODE TRUSTED_CIDRS
+resolve_trusted_cidrs
+resolve_publish
 
 # An explicit whitelist, so shell-looking text in the configs (e.g. "$SIZE" in
 # swapfile-setup.sh) survives untouched.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
-SUBST_VARS='${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}
-            ${GIT_USER_NAME} ${GIT_USER_EMAIL}
+SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
-            ${NETWORK_MODE} ${TRUSTED_CIDRS}
-            ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
+            ${TRUSTED_CIDRS} ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
 
 DST="${OUT_DIR}/pocketbastion.ign"
-echo "Rendering [mode=${NETWORK_MODE}] -> $DST"
+echo "Rendering -> $DST"
 mkdir -p "$OUT_DIR"
-podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
-    eval-all '. as $i ireduce ({}; . *+ $i)' \
-    "/w/pocketbastion.bu" ${WG_LAYER:+"$WG_LAYER"} \
-  | envsubst "$SUBST_VARS" \
+envsubst "$SUBST_VARS" < "${BUTANE_DIR}/pocketbastion.bu" \
   | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
       --pretty --strict --files-dir /w \
   > "$DST"

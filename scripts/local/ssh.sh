@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# ssh.sh — SSH into the mock VM over the WireGuard tunnel.
+# ssh.sh — SSH into the mock VM on the libvirt network.
 #
-# In lan mode there is no tunnel; use the libvirt address instead:
-#   SERVER_HOST="$(scripts/local/ip.sh)" make local-ssh
+# The address is DHCP-assigned, so it is looked up per call — deliberately NOT
+# from SERVER_HOST, which points at the real box. If SSH does not answer, use
+# the serial console instead: make local-console.
 set -euo pipefail
 
 SSH_USER="${SSH_USER:-core}"
-# If the tunnel is down, use the serial console: make local-console.
-SERVER_IP="${SERVER_HOST:-10.44.0.1}"
+SERVER_IP="$("$(dirname "$0")/ip.sh")"
 
 exec ssh \
   -o StrictHostKeyChecking=no \

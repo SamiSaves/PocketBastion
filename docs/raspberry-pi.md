@@ -3,8 +3,8 @@
 PocketBastion on a Raspberry Pi 4 on your own network. The OS lives on a microSD
 and is disposable; `/mnt/state` shares the same card and survives every reflash.
 
-`NETWORK_MODE=lan` exists for this: a home network usually already has a VPN, so
-the Pi does not need to run a second one.
+The Pi runs no VPN of its own: a home network usually already has one, and a
+second tunnel to a box you must already be next to buys nothing.
 
 Before writing a card, try the change on the [local mock](local.md) — it boots
 this same config through this same flasher.
@@ -34,12 +34,11 @@ then continue.
 cp deploy.env.example deploy.env
 ```
 
-Set your SSH public key, then choose the network mode. On a home LAN:
+Set your SSH public key, then who may reach the Pi:
 
 ```bash
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"
 
-NETWORK_MODE=lan
 TRUSTED_CIDRS="192.168.1.0/24"      # your LAN — nothing wider
 SERVER_HOST=pocketbastion-rpi.lan   # or the DHCP address
 ```
@@ -48,11 +47,9 @@ SERVER_HOST=pocketbastion-rpi.lan   # or the DHCP address
 with a shell. The render refuses an empty value or `0.0.0.0/0`, and the firewall
 falls back to a full lockdown if it is ever emptied by hand afterwards.
 
-To have the Pi run its own WireGuard instead, set `NETWORK_MODE=wireguard` and
-fill in the bootstrap peer as described in [wireguard.md](wireguard.md).
-
-Want the mock on a different mode than the Pi? Keep `deploy.env` for the Pi,
-copy it to `deploy.vm.env`, and point the mock at the copy:
+The mock sits on libvirt's network rather than your LAN, so it needs a different
+`TRUSTED_CIDRS`. Keep `deploy.env` for the Pi, copy it to `deploy.vm.env`, and
+point the mock at the copy:
 
 ```bash
 DEPLOY_ENV=deploy.vm.env make local-up
@@ -106,8 +103,8 @@ Find it on the network (hostname `pocketbastion-rpi`) and `ssh core@<ip>`.
 
 Everything here lives on `/mnt/state` and survives reflashes.
 
-**Set an OpenCode server password.** In `lan` mode the UI is plaintext HTTP on
-your LAN, so it is the only credential in front of an agent with a shell.
+**Set an OpenCode server password.** The UI is plaintext HTTP on your LAN, so it
+is the only credential in front of an agent with a shell.
 
 ```bash
 printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \
