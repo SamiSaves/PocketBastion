@@ -6,6 +6,14 @@
 #
 # Usage: make rpi-flash DEVICE=/dev/sdX
 # Requires: podman, sudo, jq, lsblk, sfdisk, rsync, envsubst
+#
+# A caller can drive this against a loopback-mounted disk image instead of a
+# card, to rehearse a flash — with the real partitioning and the real
+# state-preservation check — without a Pi. It overrides:
+#   ARCH=x86_64        write for the host's architecture, not the Pi's
+#   CONSOLE=...        bootloader console (a VM has no GPIO serial header)
+#   FLASH_YES=1        skip the confirm prompt (the caller made the target)
+# The U-Boot/ESP step is aarch64-only — nothing else about the write differs.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -15,7 +23,7 @@ IMAGES_DIR="${REPO_ROOT}/images"
 INSTALLER_IMAGE="quay.io/coreos/coreos-installer:release"
 
 STREAM="stable"
-ARCH="aarch64"
+ARCH="${ARCH:-aarch64}"
 STREAM_URL="https://builds.coreos.fedoraproject.org/streams/${STREAM}.json"
 
 # Must match the `state` partition label in config/butane/rpi.bu.
@@ -41,8 +49,10 @@ done
 
 [[ -b "$DEVICE" ]] || err "$DEVICE is not a block device."
 
+# loop is accepted for a disk image; it is still a whole device with its own
+# partition table, which is all the rest of this script needs.
 devtype="$(lsblk -dno TYPE "$DEVICE" 2>/dev/null || true)"
-[[ "$devtype" == "disk" ]] \
+[[ "$devtype" == "disk" || "$devtype" == "loop" ]] \
   || err "$DEVICE is type '${devtype:-unknown}', not a whole disk. Pass the disk (/dev/sdb), not a partition (/dev/sdb1)."
 
 mounted="$(lsblk -nro MOUNTPOINT "$DEVICE" | grep -v '^$' || true)"
@@ -62,8 +72,15 @@ echo
 echo "The GPT partition named '${STATE_PARTLABEL}' (if present) will be PRESERVED."
 echo "Everything else on the device will be destroyed."
 echo
-read -r -p "Type the device path (${DEVICE}) to confirm: " CONFIRM < /dev/tty
-[[ "$CONFIRM" == "$DEVICE" ]] || err "Aborted."
+# FLASH_YES is for a caller that allocated the target file itself. Never set
+# it by hand for a real card — this prompt is the last gate between a typo and
+# someone else's disk.
+if [[ "${FLASH_YES:-}" == 1 ]]; then
+  info "FLASH_YES=1 — skipping confirmation."
+else
+  read -r -p "Type the device path (${DEVICE}) to confirm: " CONFIRM < /dev/tty
+  [[ "$CONFIRM" == "$DEVICE" ]] || err "Aborted."
+fi
 
 read_state_start() {
   sudo sfdisk --json "$1" 2>/dev/null \
@@ -138,6 +155,7 @@ sudo podman run --rm --privileged \
     --image-file "/images/$(basename "$IMAGE_FILE")" \
     --ignition-file "/ign/$(basename "$IGN")" \
     --save-partlabel "$STATE_PARTLABEL" \
+    ${CONSOLE:+--console "$CONSOLE"} \
     "$DEVICE"
 
 sudo udevadm settle || true
@@ -150,53 +168,60 @@ sudo udevadm settle || true
 # ── Plant U-Boot + Raspberry Pi firmware on the ESP ──────────────────────────
 # A Pi has no UEFI. Fedora's uboot-images-armv8 + bcm283x-firmware RPMs provide
 # U-Boot and a ready-made config.txt, so we author no firmware config ourselves.
+#
+# Pi-only: a VM boots the same image through its own firmware and needs none of
+# this. It is also the only step that touches partitions after the install.
 
-FEDORA_RELEASE="${FCOS_RELEASE%%.*}"
-UBOOT_DIR="${IMAGES_DIR}/rpi-uboot-f${FEDORA_RELEASE}"
-
-if [[ -f "${UBOOT_DIR}/boot/efi/rpi-u-boot.bin" ]]; then
-  info "Using cached Raspberry Pi firmware for Fedora ${FEDORA_RELEASE}"
+if [[ "$ARCH" != "aarch64" ]]; then
+  info "ARCH=${ARCH}: skipping U-Boot and the ESP (Raspberry Pi firmware only)."
 else
-  info "Fetching U-Boot + Pi firmware from Fedora ${FEDORA_RELEASE} (aarch64)..."
-  rm -rf "$UBOOT_DIR"
-  mkdir -p "$UBOOT_DIR"
-  podman run --rm -v "${UBOOT_DIR}":/out:z \
-    "registry.fedoraproject.org/fedora:${FEDORA_RELEASE}" \
-    bash -euo pipefail -c '
-      dnf -q install -y cpio >/dev/null 2>&1
-      dnf download --resolve --releasever='"${FEDORA_RELEASE}"' --forcearch=aarch64 \
-        --destdir=/tmp/rpm uboot-images-armv8 bcm283x-firmware bcm283x-overlays
-      cd /out
-      for r in /tmp/rpm/*.rpm; do rpm2cpio "$r" | cpio -idmu --quiet; done
-      # U-Boot ships as u-boot.bin; the Fedora config.txt expects rpi-u-boot.bin.
-      mv usr/share/uboot/rpi_arm64/u-boot.bin boot/efi/rpi-u-boot.bin
-    '
-  [[ -f "${UBOOT_DIR}/boot/efi/rpi-u-boot.bin" ]] || err "U-Boot extraction failed."
-  [[ -f "${UBOOT_DIR}/boot/efi/config.txt" ]]     || err "config.txt missing from Fedora firmware RPMs."
+  FEDORA_RELEASE="${FCOS_RELEASE%%.*}"
+  UBOOT_DIR="${IMAGES_DIR}/rpi-uboot-f${FEDORA_RELEASE}"
+
+  if [[ -f "${UBOOT_DIR}/boot/efi/rpi-u-boot.bin" ]]; then
+    info "Using cached Raspberry Pi firmware for Fedora ${FEDORA_RELEASE}"
+  else
+    info "Fetching U-Boot + Pi firmware from Fedora ${FEDORA_RELEASE} (aarch64)..."
+    rm -rf "$UBOOT_DIR"
+    mkdir -p "$UBOOT_DIR"
+    podman run --rm -v "${UBOOT_DIR}":/out:z \
+      "registry.fedoraproject.org/fedora:${FEDORA_RELEASE}" \
+      bash -euo pipefail -c '
+        dnf -q install -y cpio >/dev/null 2>&1
+        dnf download --resolve --releasever='"${FEDORA_RELEASE}"' --forcearch=aarch64 \
+          --destdir=/tmp/rpm uboot-images-armv8 bcm283x-firmware bcm283x-overlays
+        cd /out
+        for r in /tmp/rpm/*.rpm; do rpm2cpio "$r" | cpio -idmu --quiet; done
+        # U-Boot ships as u-boot.bin; the Fedora config.txt expects rpi-u-boot.bin.
+        mv usr/share/uboot/rpi_arm64/u-boot.bin boot/efi/rpi-u-boot.bin
+      '
+    [[ -f "${UBOOT_DIR}/boot/efi/rpi-u-boot.bin" ]] || err "U-Boot extraction failed."
+    [[ -f "${UBOOT_DIR}/boot/efi/config.txt" ]]     || err "config.txt missing from Fedora firmware RPMs."
+  fi
+
+  info "Locating the FCOS EFI system partition..."
+  ESP="$(lsblk -J -o LABEL,PATH "$DEVICE" \
+          | jq -r '[.blockdevices[] | recurse(.children[]?) | select(.label == "EFI-SYSTEM") | .path] | first // empty')"
+  [[ -n "$ESP" ]] || err "Could not find an EFI-SYSTEM partition on ${DEVICE}."
+  info "ESP is ${ESP}"
+
+  ESP_MNT="$(mktemp -d)"
+  cleanup() {
+    if mountpoint -q "$ESP_MNT" 2>/dev/null; then sudo umount "$ESP_MNT" || true; fi
+    rmdir "$ESP_MNT" 2>/dev/null || true
+  }
+  trap cleanup EXIT
+
+  sudo mount "$ESP" "$ESP_MNT"
+  info "Copying Raspberry Pi firmware onto the ESP..."
+  # The ESP is vfat, so `rsync -a` fails on chown. --ignore-existing so we never
+  # clobber the EFI files FCOS just wrote.
+  sudo rsync -rt --no-perms --no-owner --no-group --ignore-existing \
+    "${UBOOT_DIR}/boot/efi/" "${ESP_MNT}/"
+  sudo sync
+
+  sudo udevadm settle || true
 fi
-
-info "Locating the FCOS EFI system partition..."
-ESP="$(lsblk -J -o LABEL,PATH "$DEVICE" \
-        | jq -r '[.blockdevices[] | recurse(.children[]?) | select(.label == "EFI-SYSTEM") | .path] | first // empty')"
-[[ -n "$ESP" ]] || err "Could not find an EFI-SYSTEM partition on ${DEVICE}."
-info "ESP is ${ESP}"
-
-ESP_MNT="$(mktemp -d)"
-cleanup() {
-  if mountpoint -q "$ESP_MNT" 2>/dev/null; then sudo umount "$ESP_MNT" || true; fi
-  rmdir "$ESP_MNT" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-sudo mount "$ESP" "$ESP_MNT"
-info "Copying Raspberry Pi firmware onto the ESP..."
-# The ESP is vfat, so `rsync -a` fails on chown. --ignore-existing so we never
-# clobber the EFI files FCOS just wrote.
-sudo rsync -rt --no-perms --no-owner --no-group --ignore-existing \
-  "${UBOOT_DIR}/boot/efi/" "${ESP_MNT}/"
-sudo sync
-
-sudo udevadm settle || true
 
 echo
 info "Resulting layout:"
@@ -214,11 +239,13 @@ else
   info "No state partition to preserve on this pass. Ignition creates it on first boot."
 fi
 
-cat <<EOF
-
-Done. FCOS ${FCOS_RELEASE} written to ${DEVICE}.
+echo
+echo "Done. FCOS ${FCOS_RELEASE} written to ${DEVICE}."
+if [[ "$ARCH" == "aarch64" ]]; then
+  cat <<EOF
 
 Put the card in the Pi, attach ethernet, power on. First boot takes 3-5 minutes,
 then ssh core@pocketbastion-rpi. See docs/raspberry-pi.md for the setup that
 follows.
 EOF
+fi
