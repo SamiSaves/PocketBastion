@@ -7,7 +7,9 @@ web UI on Fedora CoreOS so you can code from anywhere, including your phone,
 without exposing anything to the public internet. The OS is disposable; the
 repos, OpenCode sessions, caches and configs on `/mnt/state` survive a rebuild.
 
-Supported platforms: **Raspberry Pi 4** and **local KVM/libvirt**.
+It runs on a **Raspberry Pi 4**. A local KVM VM mocks that Pi — same config,
+same flasher, on a disk image — so changes can be tried before a card is
+written.
 
 ## Network modes
 
@@ -30,8 +32,8 @@ Each `deploy.env` picks one mode. For a second box in a different mode, copy it
 and point the render at the copy:
 
 ```bash
-cp deploy.env deploy.rpi.env       # NETWORK_MODE=lan in this one
-DEPLOY_ENV=deploy.rpi.env make ignition-rpi
+cp deploy.env deploy.vm.env        # NETWORK_MODE=lan in this one
+DEPLOY_ENV=deploy.vm.env make ignition
 ```
 
 ## Getting started
@@ -94,11 +96,10 @@ Host pocketbastion
 
 ### 3. Create your server & connect
 
-Follow the guide for your platform — each covers its prerequisites, creating the
-server, and connecting to it:
+Each guide covers its prerequisites, creating the server, and connecting to it:
 
-- [Raspberry Pi 4](docs/raspberry-pi.md)
-- [Local (KVM/libvirt)](docs/local.md)
+- [Raspberry Pi 4](docs/raspberry-pi.md) — the real thing
+- [Local mock VM](docs/local.md) — the same image on KVM, for trying changes first
 
 ### 4. Post-install setup
 
@@ -194,9 +195,9 @@ per-repo deploy key directly — a leaked key grants write to only that one repo
 
 ## Managing the server
 
-Platform lifecycle commands live in the platform guides
+Lifecycle commands live in the platform guides
 ([Raspberry Pi](docs/raspberry-pi.md#5-day-to-day),
-[Local](docs/local.md#managing-the-vm)). Common targets:
+[mock VM](docs/local.md#managing-the-vm)). Common targets:
 
 ```bash
 make wg-server-pubkey   # fetch the server WireGuard key (wireguard mode)
@@ -209,16 +210,15 @@ single command with `SERVER_HOST=192.168.1.42 make repo-list`.
 
 ## How the config is built
 
-Every platform is a deep merge of three layers, compiled by Butane `--strict`:
+One config, plus optional feature layers, compiled by Butane `--strict`:
 
 ```
-base.bu  *+  <platform>.bu  *+  [features/<feature>.bu ...]
+pocketbastion.bu  *+  [features/<feature>.bu ...]
 ```
 
-- **`base.bu`** — everything shared: the `core` user, sshd hardening, the
-  OpenCode container and its build, git setup, the firewall script, swap.
-- **`<platform>.bu`** — only what differs: `local.bu` and `rpi.bu` (hostname,
-  how `/mnt/state` is provided).
+- **`pocketbastion.bu`** — the whole box: the `core` user, sshd hardening, the
+  OpenCode container and its build, git setup, the firewall script, swap, and
+  the microSD partition layout.
 - **`features/`** — optional layers. `wireguard.bu` is merged in only when
   `NETWORK_MODE=wireguard`; in `lan` mode not a single WireGuard file, unit or
   address is present in the output.
@@ -227,18 +227,28 @@ Invariant: every file path and unit name lives in **exactly one** layer. `*+`
 appends arrays, so a duplicate would survive the merge and Butane `--strict`
 rejects it.
 
+The mock VM boots this same output, unmodified. Nothing branches on "am I a
+VM" — that is what makes it worth testing on.
+
 ## Testing
 
 ```bash
-make validate       # shellcheck, systemd-analyze, render every platform/mode
+make validate       # shellcheck, systemd-analyze, render both network modes
+make local-up       # boot the mock and try it for real
 ```
 
-`make validate` renders both platforms and asserts the layering: that every
-shared block reaches every platform, that each platform gets only its own disk
-layout, and that `lan` mode emits no WireGuard file, unit or address at all.
+`make validate` is static: it renders both network modes and asserts that every
+expected file and unit is present, that `lan` mode emits no WireGuard file, unit
+or address at all, and that the two disk-layout numbers a reflash depends on are
+unchanged.
 
-There is no runtime hardening check yet — the box's security properties are
-asserted at render time only.
+Runtime behaviour is checked by running the mock. `make local-up` reflashes it
+through the real `scripts/rpi/flash.sh`, so every rebuild also exercises
+`--save-partlabel` and verifies the state partition did not move — the failure
+that would otherwise cost you the data on a real card.
+
+There is still no automated runtime hardening check; the mock is where you look
+at the firewall by hand.
 
 ## Security notes
 
@@ -268,5 +278,5 @@ asserted at render time only.
 - See if we could host vscode server for better development experience
 - Small security audit
 - Make core os password configurable
-- Consider DNS for VM
+- Consider DNS for the Pi
 - Consider custom web UI for managing the server

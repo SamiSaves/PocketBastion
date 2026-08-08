@@ -1,12 +1,10 @@
-.PHONY: help ignition-local ignition-rpi validate \
+.PHONY: help ignition validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
         wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
         clean
 
-BUTANE_IMAGE := quay.io/coreos/butane:release
-VM_NAME      := pocketbastion-local
 DEPLOY_ENV   := $(abspath deploy.env)
 
 # Where the management targets connect. An environment variable wins; otherwise
@@ -20,41 +18,39 @@ help: ## Show this help
 
 # ── Ignition rendering ──────────────────────────────────────────────────────
 
-ignition-local: ## Render local Ignition config from Butane (injects SSH key)
-	@bash scripts/render-ignition.sh local
-
-ignition-rpi: ## Render Raspberry Pi Ignition config from Butane
-	@bash scripts/render-ignition.sh rpi
+ignition: ## Render the Ignition config from Butane (injects SSH key)
+	@bash scripts/render-ignition.sh
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
 validate: ## Validate scripts and configs
 	@./scripts/validate.sh
 
-# ── Local VM lifecycle ───────────────────────────────────────────────────────
-
-local-up: ignition-local ## Render Ignition and create local KVM VM
-	@./scripts/local/create-vm.sh
-
-local-down: ## Destroy local KVM VM (preserves state disk)
-	@./scripts/local/destroy-vm.sh
-
-local-wipe-state: ## Permanently delete the local state disk (DATA LOSS — prompts for confirmation)
-	@./scripts/local/wipe-state.sh
-
-local-ip: ## Print local VM IP address
-	@./scripts/local/ip.sh
-
-local-ssh: ## SSH into local VM
-	@./scripts/local/ssh.sh
-
-local-console: ## Open serial console for local VM
-	@./scripts/local/console.sh
-
-# ── Raspberry Pi 4 ───────────────────────────────────────────────────────────
+# ── Raspberry Pi ─────────────────────────────────────────────────────────────
 
 rpi-flash: ## Flash FCOS + U-Boot to a microSD, preserving /mnt/state  (DEVICE=/dev/sdX)
 	@./scripts/rpi/flash.sh "$(DEVICE)"
+
+# ── Local mock of the Pi ─────────────────────────────────────────────────────
+# Same config, same flasher, on a loopback disk image. Try changes here first.
+
+local-up: ## Flash and boot the mock VM (reflash if it exists; keeps /mnt/state)
+	@./scripts/local/create-vm.sh
+
+local-down: ## Remove the mock VM, keep its disk image
+	@./scripts/local/destroy-vm.sh
+
+local-wipe-state: ## Permanently delete the mock's disk image (DATA LOSS — prompts for confirmation)
+	@./scripts/local/wipe-state.sh
+
+local-ip: ## Print the mock VM's address on the libvirt network
+	@./scripts/local/ip.sh
+
+local-ssh: ## SSH into the mock VM
+	@./scripts/local/ssh.sh
+
+local-console: ## Open serial console for the mock VM
+	@./scripts/local/console.sh
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +61,7 @@ clean: ## Remove generated Ignition files
 # ── WireGuard ────────────────────────────────────────────────────────────────
 # Only meaningful when NETWORK_MODE is wireguard.
 
-wg-server-pubkey: ## Fetch server WireGuard public key from VM → secrets/wireguard/server.public
+wg-server-pubkey: ## Fetch server WireGuard public key from the box → secrets/wireguard/server.public
 	@scripts/wg-server-pubkey.sh
 
 wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10.44.0.4 PUBKEY=<key>)
@@ -73,11 +69,11 @@ wg-add-peer: ## Register a peer's device-generated public key  (PEER=phone IP=10
 
 # ── GitHub repositories ──────────────────────────────────────────────────────
 
-repo-add: ## Grant the VM access to a repo  (REPO=git@host:owner/name.git)
+repo-add: ## Grant the box access to a repo  (REPO=git@host:owner/name.git)
 	@scripts/repo-add.sh "$(REPO)"
 
-repo-list: ## List repos the VM has git access to
+repo-list: ## List repos the box has git access to
 	@scripts/repo-list.sh
 
-repo-remove: ## Revoke the VM's access to a repo  (NAME=host-owner-name [PURGE=1])
+repo-remove: ## Revoke the box's access to a repo  (NAME=host-owner-name [PURGE=1])
 	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1 true yes,$(PURGE)),--purge,)

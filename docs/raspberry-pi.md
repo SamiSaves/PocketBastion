@@ -3,8 +3,11 @@
 PocketBastion on a Raspberry Pi 4 on your own network. The OS lives on a microSD
 and is disposable; `/mnt/state` shares the same card and survives every reflash.
 
-This is the platform that motivated `NETWORK_MODE=lan`: a home network usually
-already has a VPN, so the Pi does not need to run a second one.
+`NETWORK_MODE=lan` exists for this: a home network usually already has a VPN, so
+the Pi does not need to run a second one.
+
+Before writing a card, try the change on the [local mock](local.md) — it boots
+this same config through this same flasher.
 
 ## 1. What you need
 
@@ -14,7 +17,7 @@ already has a VPN, so the Pi does not need to run a second one.
 | Card | 32 GB microSD minimum, 64 GB comfortable. High-endurance is worth it. |
 | Network | **Ethernet.** Wi-Fi would need NetworkManager keyfiles in Ignition, which this config does not do. |
 | Firmware | The Pi's **EEPROM must be updated first** — see below. |
-| Host tools | `podman`, `sudo`, `jq`, `lsblk`, `sfdisk`, `rsync`, `envsubst`, `findmnt` |
+| Host tools | `podman`, `sudo`, `jq`, `lsblk`, `sfdisk`, `rsync`, `envsubst` |
 
 ### Update the EEPROM first
 
@@ -48,12 +51,11 @@ falls back to a full lockdown if it is ever emptied by hand afterwards.
 To have the Pi run its own WireGuard instead, set `NETWORK_MODE=wireguard` and
 fill in the bootstrap peer as described in [wireguard.md](wireguard.md).
 
-Running the local VM from `deploy.env` in a different mode? Keep that file
-as-is, copy it to `deploy.rpi.env` with `NETWORK_MODE=lan`, and prefix the Pi
-commands:
+Want the mock on a different mode than the Pi? Keep `deploy.env` for the Pi,
+copy it to `deploy.vm.env`, and point the mock at the copy:
 
 ```bash
-export DEPLOY_ENV=deploy.rpi.env
+DEPLOY_ENV=deploy.vm.env make local-up
 ```
 
 ### Tune for 4 GB of RAM and a flash card
@@ -89,9 +91,9 @@ Every run after preserves it and verifies afterwards that it is still at the
 same sector; if it moved or vanished, the script fails and tells you not to
 reboot.
 
-Before writing, it checks that the device is a whole disk, that nothing on it is
-mounted, and that it does not back this machine's `/`, `/boot`, `/boot/efi` or
-`/home` — through the full LVM/LUKS parent chain, not just `PKNAME`.
+Before writing, it checks that the device is a whole disk (or a loop device,
+which is how the mock VM's image is flashed), that nothing on it is mounted, and
+it prints the layout and makes you type the device path back before it starts.
 
 ### First boot
 
@@ -130,9 +132,10 @@ and deploy keys are all on `/mnt/state` and come back untouched.
 
 ### `size_mib: 16384` for root
 
-Immutable after the first flash. On a reflash `--save-partlabel` pins `state` at
-its original offset while Ignition re-grows root to the same end sector. Change
-the number and the resize collides with the partition holding your data.
+In `config/butane/pocketbastion.bu`. Immutable after the first flash. On a
+reflash `--save-partlabel` pins `state` at its original offset while Ignition
+re-grows root to the same end sector. Change the number and the resize collides
+with the partition holding your data.
 
 ### The `state` partition omits `size_mib`
 
@@ -163,9 +166,11 @@ Ignition.
 3. Get a USB-to-TTL serial adapter (~€3). Fedora's `config.txt` already sets
    `enable_uart=1`, so GPIO pins 8/10 at 115200 turn every silent failure into a
    readable one.
-4. Isolate boot from partitioning: render a variant of `rpi.bu` without the
-   `storage.disks` and `storage.filesystems` stanzas. If that appears on the
-   network, the problem is Ignition; if not, it is firmware/EEPROM/drivers.
+4. Isolate boot from partitioning: render a variant of `pocketbastion.bu`
+   without the `storage.disks` and `storage.filesystems` stanzas. If that
+   appears on the network, the problem is Ignition; if not, it is
+   firmware/EEPROM/drivers. The [mock](local.md) rules Ignition in or out
+   without touching the Pi at all.
 
 ## 8. Known gaps
 

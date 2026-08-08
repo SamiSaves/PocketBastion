@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Renders Butane configs to Ignition JSON, one platform at a time:
+# Renders the Butane config to Ignition JSON:
 #
-#   base.bu *+ <platform>.bu *+ [features/<feature>.bu ...]
+#   pocketbastion.bu *+ [features/<feature>.bu ...]
 #
 # deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
 #
-# Usage:   scripts/render-ignition.sh [local|rpi]   (default: local)
+# Usage:   scripts/render-ignition.sh
 # Requires: podman, envsubst (gettext)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Override for a second deployment: DEPLOY_ENV=deploy.rpi.env make ignition-rpi
+# Override for a second box: DEPLOY_ENV=deploy.vm.env make ignition
 DEPLOY_ENV="${DEPLOY_ENV:-${REPO_ROOT}/deploy.env}"
 BUTANE_DIR="${REPO_ROOT}/config/butane"
 BUTANE_IMAGE="quay.io/coreos/butane:release"
@@ -138,25 +138,14 @@ SUBST_VARS='${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}
             ${NETWORK_MODE} ${TRUSTED_CIDRS}
             ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
 
-render() {
-  local platform="$1" dst="$2"
-  echo "Rendering ${platform} [mode=${NETWORK_MODE}] -> $dst"
-  mkdir -p "$(dirname "$dst")"
-  podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
-      eval-all '. as $i ireduce ({}; . *+ $i)' \
-      "/w/base.bu" "/w/${platform}.bu" ${WG_LAYER:+"$WG_LAYER"} \
-    | envsubst "$SUBST_VARS" \
-    | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
-        --pretty --strict --files-dir /w \
-    > "$dst"
-  echo "OK: $dst"
-}
-
-case "${1:-local}" in
-  local) render local "${OUT_DIR}/local.ign" ;;
-  rpi) render rpi "${OUT_DIR}/rpi.ign" ;;
-  *)
-    echo "Usage: $0 [local|rpi]" >&2
-    exit 1
-    ;;
-esac
+DST="${OUT_DIR}/pocketbastion.ign"
+echo "Rendering [mode=${NETWORK_MODE}] -> $DST"
+mkdir -p "$OUT_DIR"
+podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
+    eval-all '. as $i ireduce ({}; . *+ $i)' \
+    "/w/pocketbastion.bu" ${WG_LAYER:+"$WG_LAYER"} \
+  | envsubst "$SUBST_VARS" \
+  | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
+      --pretty --strict --files-dir /w \
+  > "$DST"
+echo "OK: $DST"

@@ -16,10 +16,15 @@ MISSING=0
 
 echo "=== Checking required tools ==="
 
+# losetup/sfdisk/rsync/envsubst are here because the mock VM is built by the
+# real Pi flasher (scripts/rpi/flash.sh), not by a VM-specific shortcut.
 REQUIRED_TOOLS=(
-  qemu-img
   virsh
   virt-install
+  losetup
+  sfdisk
+  rsync
+  envsubst
   podman
   curl
   jq
@@ -66,7 +71,10 @@ cat <<'EOF'
     libvirt-clients \
     virt-manager \
     virtinst \
-    genisoimage \
+    util-linux \
+    fdisk \
+    rsync \
+    gettext-base \
     jq \
     make \
     curl \

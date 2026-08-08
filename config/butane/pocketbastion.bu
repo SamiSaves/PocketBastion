@@ -1,26 +1,26 @@
 variant: fcos
 version: 1.5.0
-# base.bu — shared Butane baseline for every environment.
+# pocketbastion.bu — the whole box. Targets a Raspberry Pi 4 on a microSD, and
+# the local KVM mock that rehearses it (scripts/local/create-vm.sh) boots this
+# very config, unmodified — that is the point of the mock.
 #
-# This file is NOT rendered on its own. render-ignition.sh deep-merges it with a
-# platform overlay and any optional feature layers, using `yq ... *+`, before
-# piping the result to Butane:
+# render-ignition.sh deep-merges this with any optional feature layers, using
+# `yq ... *+`, before piping the result to Butane:
 #
-#   base.bu *+ <platform>.bu *+ [features/<feature>.bu ...]
+#   pocketbastion.bu *+ [features/<feature>.bu ...]
 #
-# Invariant: every file path and every systemd unit name lives in exactly ONE
+# Invariant: every file path and every systemd unit name appears in exactly ONE
 # layer. `*+` appends arrays, so a path/name defined twice would produce a
-# duplicate and Butane --strict would reject it. Keep divergent entries
-# (hostname, root disk device, format-on-first-boot) in the platform overlay,
-# and anything optional in a feature layer.
+# duplicate and Butane --strict would reject it. Anything optional belongs in a
+# feature layer, never here.
 passwd:
   users:
     # The core user (UID 1000) owns the rootless Quadlet containers; SSH key
     # injected at render time.
     #
-    # password_hash is a PUBLIC default for break-glass console login only
-    # (serial / DO web console). Not a network credential: sshd is key-only +
-    # WG-only. Change it on first console login (see README).
+    # password_hash is a PUBLIC default for break-glass serial console login
+    # only. Not a network credential: sshd is key-only, and in wireguard mode
+    # not reachable off the tunnel. Change it on first console login (README).
     - name: core
       password_hash: "$6$uxZJIlbecCN0.R4V$uEOl0OUAciUTCoeuzZLooVYni9Mr9jHTfZRHDs8QaieEWp0o0kZJ7eviUFHeutibqDA/jAb/E/1DGDTtVuIQ51"
       ssh_authorized_keys:
@@ -29,11 +29,56 @@ passwd:
         - wheel
         - sudo
 storage:
+  disks:
+    # coreos-boot-disk is FCOS's own symlink for "the disk I booted from",
+    # created in the initramfs before Ignition runs. Using it means this config
+    # does not care whether it lands on mmcblk0, sda, or a virtio disk in the
+    # mock VM.
+    - device: /dev/disk/by-id/coreos-boot-disk
+      wipe_table: false
+      partitions:
+        # IMMUTABLE after the first flash: on a reflash --save-partlabel pins
+        # `state` at its original offset while Ignition re-grows root to the
+        # same end sector. Change this and the resize collides with your data.
+        - number: 4
+          label: root
+          size_mib: 16384
+          resize: true
+        # size_mib is deliberately omitted, NOT set to 0. Omitted makes Ignition
+        # adopt the existing partition; 0 makes it recompute the size against
+        # current disk geometry, which differs across a reflash and hard-fails
+        # in the initramfs. docs/raspberry-pi.md#the-state-partition-omits-size_mib
+        - number: 5
+          label: state
+  filesystems:
+    - device: /dev/disk/by-partlabel/state
+      format: ext4
+      label: state
+      wipe_filesystem: false
+      # noatime: this is a microSD card, every avoidable write counts.
+      mount_options:
+        - noatime
+      with_mount_unit: true
+      path: /var/mnt/state
   directories:
     # /mnt is a symlink to /var/mnt on CoreOS; use the canonical path.
     - path: /var/mnt/state
       mode: 0755
   files:
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: pocketbastion-rpi
+    - path: /etc/motd
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          PocketBastion (network mode: ${NETWORK_MODE})
+
+          /mnt/state is the only persistent data.
+          The OS is disposable: reflash to reset it.
     - path: /etc/ssh/sshd_config.d/99-hardening.conf
       mode: 0600
       contents:

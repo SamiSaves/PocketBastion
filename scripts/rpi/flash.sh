@@ -7,11 +7,11 @@
 # Usage: make rpi-flash DEVICE=/dev/sdX
 # Requires: podman, sudo, jq, lsblk, sfdisk, rsync, envsubst
 #
-# A caller can drive this against a loopback-mounted disk image instead of a
-# card, to rehearse a flash — with the real partitioning and the real
-# state-preservation check — without a Pi. It overrides:
-#   ARCH=x86_64        write for the host's architecture, not the Pi's
-#   CONSOLE=...        bootloader console (a VM has no GPIO serial header)
+# scripts/local/create-vm.sh drives this same script against a loopback-mounted
+# disk image to build the mock VM, so the mock gets the real partitioning and
+# the real state-preservation check. It overrides:
+#   ARCH=x86_64        the mock runs on the host's architecture
+#   CONSOLE=...        bootloader console, so the mock has a serial console
 #   FLASH_YES=1        skip the confirm prompt (the caller made the target)
 # The U-Boot/ESP step is aarch64-only — nothing else about the write differs.
 set -euo pipefail
@@ -26,7 +26,7 @@ STREAM="stable"
 ARCH="${ARCH:-aarch64}"
 STREAM_URL="https://builds.coreos.fedoraproject.org/streams/${STREAM}.json"
 
-# Must match the `state` partition label in config/butane/rpi.bu.
+# Must match the `state` partition label in config/butane/pocketbastion.bu.
 STATE_PARTLABEL="state"
 
 err()  { echo "ERROR: $*" >&2; exit 1; }
@@ -49,8 +49,8 @@ done
 
 [[ -b "$DEVICE" ]] || err "$DEVICE is not a block device."
 
-# loop is accepted for a disk image; it is still a whole device with its own
-# partition table, which is all the rest of this script needs.
+# loop is accepted for the mock VM's disk image; it is still a whole device
+# with its own partition table, which is all the rest of this script needs.
 devtype="$(lsblk -dno TYPE "$DEVICE" 2>/dev/null || true)"
 [[ "$devtype" == "disk" || "$devtype" == "loop" ]] \
   || err "$DEVICE is type '${devtype:-unknown}', not a whole disk. Pass the disk (/dev/sdb), not a partition (/dev/sdb1)."
@@ -72,9 +72,9 @@ echo
 echo "The GPT partition named '${STATE_PARTLABEL}' (if present) will be PRESERVED."
 echo "Everything else on the device will be destroyed."
 echo
-# FLASH_YES is for a caller that allocated the target file itself. Never set
-# it by hand for a real card — this prompt is the last gate between a typo and
-# someone else's disk.
+# FLASH_YES is only ever set by create-vm.sh, which allocated the target file
+# itself. Never set it by hand for a real card — this prompt is the last gate
+# between a typo and someone else's disk.
 if [[ "${FLASH_YES:-}" == 1 ]]; then
   info "FLASH_YES=1 — skipping confirmation."
 else
@@ -100,13 +100,13 @@ fi
 # Rendered here rather than reused, so every reflash re-validates deploy.env
 # before anything is written.
 
-IGN="${IGNITION_DIR}/rpi.ign"
-"${REPO_ROOT}/scripts/render-ignition.sh" rpi
+IGN="${IGNITION_DIR}/pocketbastion.ign"
+"${REPO_ROOT}/scripts/render-ignition.sh"
 
 # ── Preflight: is the device big enough? ─────────────────────────────────────
 # A too-small card flashes fine and then fails inside Ignition's disks stage, in
 # the initramfs, before networking — which on a Pi looks like nothing at all.
-# root comes from the rendered Ignition so it cannot drift from rpi.bu; the
+# root comes from the rendered Ignition so it cannot drift from the Butane config;
 # 3 GiB covers FCOS's pre-root partitions plus a usable minimum for state.
 ROOT_SIZE_MIB="$(jq -r '.storage.disks[0].partitions[]? | select(.label=="root") | .sizeMiB // empty' "$IGN" | head -n1)"
 [[ -n "$ROOT_SIZE_MIB" ]] || err "Could not read the root partition size out of ${IGN}."
@@ -169,8 +169,8 @@ sudo udevadm settle || true
 # A Pi has no UEFI. Fedora's uboot-images-armv8 + bcm283x-firmware RPMs provide
 # U-Boot and a ready-made config.txt, so we author no firmware config ourselves.
 #
-# Pi-only: a VM boots the same image through its own firmware and needs none of
-# this. It is also the only step that touches partitions after the install.
+# Pi-only: the mock VM boots the same image through SeaBIOS/OVMF and needs none
+# of this. It is also the only step that touches partitions after the install.
 
 if [[ "$ARCH" != "aarch64" ]]; then
   info "ARCH=${ARCH}: skipping U-Boot and the ESP (Raspberry Pi firmware only)."

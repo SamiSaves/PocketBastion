@@ -1,115 +1,87 @@
 #!/usr/bin/env bash
-# create-vm.sh — create (or replace) the local KVM dev VM.
+# create-vm.sh — build the local KVM mock of the Raspberry Pi.
 #
-# Prerequisites (one-time host setup):
-#   scripts/local/setup.sh       — run once after installing packages
+# The mock is not a lookalike: it boots the SAME Ignition config, written by the
+# SAME scripts/rpi/flash.sh, onto a disk image partitioned the same way. Only
+# the architecture and the U-Boot/EEPROM boot path differ, because those cannot
+# be reproduced off the hardware.
 #
-# Base image must be placed at:
-#   /var/lib/libvirt/images/fedora-coreos-44.qcow2
+#   disk image  --> losetup    (a real block device, so flash.sh works unchanged)
+#               --> flash.sh   (coreos-installer + --save-partlabel state)
+#               --> virt-install --import
 #
-# Override the base image path with:
-#   FCOS_IMAGE=/path/to/fedora-coreos.qcow2 make local-up
+# Re-running this is a REFLASH, exactly as on the Pi: the OS is replaced and
+# /mnt/state is preserved, and flash.sh verifies the state partition did not
+# move. Use it to try a deploy.env or Butane change before committing a card.
 #
-# Download from:
-#   https://fedoraproject.org/coreos/download?stream=stable&arch=x86_64
-#   Choose: Bare Metal & Virtualized → QEMU (qcow2.xz)
-#   Then:  xz -d fedora-coreos-*.qcow2.xz
-#   Then:  sudo mv fedora-coreos-*.qcow2 /var/lib/libvirt/images/fedora-coreos-44.qcow2
+#   make local-up                       # create/reflash and boot
+#   VM_DISK_GB=32 make local-up         # smaller image (first run only)
+#   RAM_MB=2048 VCPUS=2 make local-up   # trim if the host is small
 set -euo pipefail
 
 VM_NAME="pocketbastion-local"
-VOL_NAME="${VM_NAME}-os.qcow2"
-STATE_VOL_NAME="${VM_NAME}-state.qcow2"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-IGNITION="${REPO_ROOT}/config/ignition/local.ign"
-IMGDIR="/var/lib/libvirt/images"
-# FCOS_IMAGE may be set to an absolute path or a path relative to the repo root.
-if [[ -n "${FCOS_IMAGE:-}" ]]; then
-  [[ "$FCOS_IMAGE" != /* ]] && FCOS_IMAGE="${REPO_ROOT}/${FCOS_IMAGE}"
-  BASE_IMAGE="$FCOS_IMAGE"
-else
-  BASE_IMAGE="${IMGDIR}/fedora-coreos-44.qcow2"
-fi
-IGNITION_COPY="${IMGDIR}/${VM_NAME}.ign"
-RAM_MB="${RAM_MB:-2048}"
+
+# Lives where libvirt already has permission and the right SELinux/AppArmor
+# labels. Sparse, so VM_DISK_GB costs only what the guest actually writes.
+DISK="${VM_DISK:-/var/lib/libvirt/images/${VM_NAME}.raw}"
+# Root is pinned at 16 GiB by the Butane config and state takes the rest, so
+# anything under ~24 GB leaves too little state to be a useful devbox.
+VM_DISK_GB="${VM_DISK_GB:-64}"
+# The Pi this mocks is a 4 GB board. Match it, so memory limits are tested too.
+RAM_MB="${RAM_MB:-4096}"
 VCPUS="${VCPUS:-2}"
-STATE_DISK_GB="${STATE_DISK_GB:-10}"
 
-# ── Pre-flight checks ────────────────────────────────────────────────────────
+err()  { echo "ERROR: $*" >&2; exit 1; }
+info() { echo "==> $*"; }
 
-if [[ ! -f "$IGNITION" ]]; then
-  echo "ERROR: Ignition config not found at $IGNITION" >&2
-  echo "Run: make ignition" >&2
-  exit 1
-fi
+for tool in virsh virt-install losetup; do
+  command -v "$tool" >/dev/null 2>&1 || err "'$tool' not found. Run scripts/local/prereqs.sh."
+done
 
-if [[ ! -f "$BASE_IMAGE" ]]; then
-  echo "ERROR: Base image not found at $BASE_IMAGE" >&2
-  echo "  1. Download from https://fedoraproject.org/coreos/download?stream=stable&arch=x86_64" >&2
-  echo "     (Bare Metal & Virtualized → QEMU → qcow2.xz)" >&2
-  echo "  2. xz -d fedora-coreos-*.qcow2.xz" >&2
-  echo "  3. sudo mv fedora-coreos-*.qcow2 $BASE_IMAGE" >&2
-  exit 1
-fi
+(( VM_DISK_GB >= 24 )) || err "VM_DISK_GB=${VM_DISK_GB} is too small; root alone is 16 GiB. Use 24 or more."
 
-# Locate the libvirt storage pool that owns IMGDIR.
-POOL=$(virsh --connect qemu:///system pool-list --all --name \
-  | while read -r p; do
-      [[ -z "$p" ]] && continue
-      virsh --connect qemu:///system pool-dumpxml "$p" 2>/dev/null \
-        | grep -q "<path>${IMGDIR}</path>" && echo "$p" && break
-    done)
-
-if [[ -z "$POOL" ]]; then
-  echo "ERROR: No libvirt storage pool found for $IMGDIR" >&2
-  echo "Run: scripts/local/setup.sh" >&2
-  exit 1
-fi
-
-# ── Create or reuse state disk ────────────────────────────────────────────────
-
-if virsh --connect qemu:///system vol-info --pool "$POOL" "$STATE_VOL_NAME" &>/dev/null; then
-  echo "Reusing existing state disk: ${IMGDIR}/${STATE_VOL_NAME}"
-else
-  echo "Creating state disk (${STATE_DISK_GB}GB) ..."
-  virsh --connect qemu:///system vol-create-as \
-    "$POOL" "$STATE_VOL_NAME" "${STATE_DISK_GB}G" --format qcow2
-fi
-
-# ── Destroy existing VM if present ──────────────────────────────────────────
+# ── The VM must be gone before its disk is rewritten underneath it ────────────
 
 if virsh --connect qemu:///system dominfo "$VM_NAME" &>/dev/null; then
-  echo "Destroying existing VM: $VM_NAME"
-  virsh --connect qemu:///system destroy "$VM_NAME" 2>/dev/null || true
-  virsh --connect qemu:///system undefine "$VM_NAME" 2>/dev/null || true
+  info "Removing the existing VM definition (its disk image is kept)."
+  virsh --connect qemu:///system destroy "$VM_NAME" &>/dev/null || true
+  virsh --connect qemu:///system undefine "$VM_NAME" &>/dev/null || true
 fi
 
-# ── Create OS overlay disk via libvirt (keeps pool registry in sync) ─────────
+# ── Disk image ───────────────────────────────────────────────────────────────
 
-echo "Creating OS overlay disk ..."
-virsh --connect qemu:///system vol-delete --pool "$POOL" "$VOL_NAME" 2>/dev/null || true
-virsh --connect qemu:///system vol-create --pool "$POOL" /dev/stdin << VOLEOF
-<volume>
-  <name>${VOL_NAME}</name>
-  <capacity unit="bytes">0</capacity>
-  <target><format type='qcow2'/></target>
-  <backingStore>
-    <path>${BASE_IMAGE}</path>
-    <format type='qcow2'/>
-  </backingStore>
-</volume>
-VOLEOF
+if [[ -f "$DISK" ]]; then
+  info "Reusing disk image ${DISK} — this is a reflash, /mnt/state is preserved."
+else
+  info "Allocating a sparse ${VM_DISK_GB}GB disk image at ${DISK} (first flash)."
+  sudo install -d -m 0711 "$(dirname "$DISK")"
+  sudo truncate -s "${VM_DISK_GB}G" "$DISK"
+fi
 
-echo "Copying Ignition config ..."
-IGN_VOL_NAME="${VM_NAME}.ign"
-IGN_SIZE=$(stat -c%s "$IGNITION")
-virsh --connect qemu:///system vol-delete --pool "$POOL" "$IGN_VOL_NAME" 2>/dev/null || true
-virsh --connect qemu:///system vol-create-as "$POOL" "$IGN_VOL_NAME" "$IGN_SIZE" --format raw
-virsh --connect qemu:///system vol-upload --pool "$POOL" "$IGN_VOL_NAME" "$IGNITION"
+# ── Flash it exactly as the Pi is flashed ────────────────────────────────────
 
-# ── Create VM ────────────────────────────────────────────────────────────────
+LOOP="$(sudo losetup --find --show --partscan "$DISK")" \
+  || err "Could not attach ${DISK} to a loop device."
+info "Attached ${DISK} as ${LOOP}"
+# shellcheck disable=SC2064  # LOOP must be expanded now, not at trap time
+trap "sudo losetup --detach '$LOOP' 2>/dev/null || true" EXIT
 
-echo "Creating VM: $VM_NAME"
+# ARCH: the host's, not the Pi's. CONSOLE: FCOS metal defaults to the graphical
+# console, and without this `make local-console` would show nothing — which is
+# the break-glass path the mock most needs to keep.
+# FLASH_YES: safe here and nowhere else; this script allocated the target.
+ARCH="$(uname -m)" CONSOLE="ttyS0,115200n8" FLASH_YES=1 \
+  "${REPO_ROOT}/scripts/rpi/flash.sh" "$LOOP"
+
+sudo losetup --detach "$LOOP"
+trap - EXIT
+
+# ── Boot ─────────────────────────────────────────────────────────────────────
+# No --sysinfo/fwcfg Ignition injection: coreos-installer already embedded the
+# config in the disk, the same way the Pi gets it.
+
+info "Creating VM ${VM_NAME} (${RAM_MB}MB RAM, ${VCPUS} vCPU)"
 virt-install \
   --connect qemu:///system \
   --name "$VM_NAME" \
@@ -118,14 +90,18 @@ virt-install \
   --os-variant fedora-coreos-stable \
   --machine q35 \
   --import \
-  --disk "vol=${POOL}/${VOL_NAME},format=qcow2,bus=virtio" \
-  --disk "vol=${POOL}/${STATE_VOL_NAME},format=qcow2,bus=virtio" \
+  --disk "path=${DISK},format=raw,bus=virtio" \
   --network network=default \
-  --sysinfo "type=fwcfg,entry0.name=opt/com.coreos/config,entry0.file=${IGNITION_COPY}" \
+  --console pty,target_type=serial \
   --noautoconsole \
   --wait 0
 
-echo ""
-echo "VM '${VM_NAME}' created. Wait ~30s for first boot, then:"
-echo "  make local-ip    # get the IP address"
-echo "  make local-ssh   # open an SSH session"
+cat <<EOF
+
+VM '${VM_NAME}' is booting. First boot takes 3-5 minutes: it creates the state
+filesystem, grows root, then builds the OpenCode container image.
+
+  make local-console   # watch it boot / break-glass, no network needed
+  make local-ip        # its address on the libvirt network
+  make local-ssh       # over the WireGuard tunnel (wireguard mode)
+EOF

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# ssh.sh — SSH into the dev VM over the WireGuard tunnel (mirrors DO).
+# ssh.sh — SSH into the mock VM over the WireGuard tunnel.
+#
+# In lan mode there is no tunnel; use the libvirt address instead:
+#   SERVER_HOST="$(scripts/local/ip.sh)" make local-ssh
 set -euo pipefail
 
 SSH_USER="${SSH_USER:-core}"
