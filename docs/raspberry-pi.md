@@ -3,8 +3,8 @@
 PocketBastion on a Raspberry Pi 4 on your own network. The OS lives on a microSD
 and is disposable; `/mnt/state` shares the same card and survives every reflash.
 
-The Pi runs no VPN of its own: a home network usually already has one, and a
-second tunnel to a box you must already be next to buys nothing.
+The Pi runs no VPN of its own, so the network it sits on has to be the gate:
+reach that LAN over your router's VPN, and never port-forward to the Pi.
 
 Before writing a card, try the change on the [local mock](local.md) — it boots
 this same config through this same flasher.
@@ -104,7 +104,8 @@ Find it on the network (hostname `pocketbastion-rpi`) and `ssh core@<ip>`.
 Everything here lives on `/mnt/state` and survives reflashes.
 
 **Set an OpenCode server password.** The UI is plaintext HTTP on your LAN, so it
-is the only credential in front of an agent with a shell.
+is the only credential in front of an agent with a shell. You log in as
+`opencode` with it.
 
 ```bash
 printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \

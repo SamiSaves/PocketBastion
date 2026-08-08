@@ -14,9 +14,9 @@ written.
 
 ## How it is reached
 
-The box runs no VPN of its own. It sits on a network you already have to be on —
-your LAN, or whatever VPN gets you there — and `TRUSTED_CIDRS` is the whole
-access-control boundary in front of it:
+The box runs no VPN of its own, so the network it sits on has to be the gate:
+put it on a LAN you reach over your own VPN, and never port-forward to it.
+`TRUSTED_CIDRS` is then the whole access-control boundary in front of it:
 
 | | |
 |---|---|
@@ -107,7 +107,8 @@ printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \
 chmod 600 /mnt/state/secrets/opencode.env
 ```
 
-This is the only credential in front of the UI, which is plaintext HTTP.
+Log in as `opencode` with that password. It is the only credential in front of
+the UI, which is plaintext HTTP.
 
 Optionally add provider keys to the same file, one per line
 (`ANTHROPIC_API_KEY=…`, `OPENAI_API_KEY=…`).
@@ -129,9 +130,9 @@ The UI is then reachable at `http://<server>:4096` from a trusted network.
 
 ### Running a dev server
 
-Only ports you list are published from OpenCode's (untrusted,
-network-isolated) container. Add them to `OPENCODE_EXTRA_PORTS` in `deploy.env`
-(space-separated ports/ranges), then re-render and redeploy:
+Only ports you list are published from OpenCode's container. Add them to
+`OPENCODE_EXTRA_PORTS` in `deploy.env` (space-separated ports/ranges), then
+re-render and redeploy:
 
 ```bash
 OPENCODE_EXTRA_PORTS="3000 5173 8000-8010"
@@ -183,7 +184,7 @@ single command with `SERVER_HOST=192.168.1.42 make repo-list`.
 
 One file, `config/butane/pocketbastion.bu`: the whole box — the `core` user,
 sshd hardening, the OpenCode container and its build, git setup, the firewall
-script, swap, and the microSD partition layout. `make ignition` substitutes
+script, zram, and the microSD partition layout. `make ignition` substitutes
 `${VARS}` from `deploy.env` into it and compiles it with Butane `--strict`.
 
 The mock VM boots this same output, unmodified. Nothing branches on "am I a
@@ -222,6 +223,8 @@ at the firewall by hand.
 - The box runs no VPN of its own, so it is only as isolated as the network you
   put it on. The OpenCode UI is plaintext HTTP, so its server password is the
   only credential in front of it — nothing enforces that you set one.
+- The firewall filters inbound only. The container's outbound access is
+  unrestricted: an agent inside it can reach your LAN and the internet.
 - Git credentials use narrowly scoped per-repo deploy keys, not personal access
   tokens.
 
@@ -229,7 +232,6 @@ at the firewall by hand.
 
 - Improve security stance on opencode container, see if we can avoid it having so many secrets, such as git ssh keys
 - See if we could host vscode server for better development experience
-- Small security audit
 - Make core os password configurable
 - Consider DNS for the Pi
 - Consider custom web UI for managing the server
