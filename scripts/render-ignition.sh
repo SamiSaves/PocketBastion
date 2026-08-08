@@ -96,17 +96,16 @@ if [[ -n "${ZRAM_SIZE:-}" ]]; then
 fi
 export ZRAM_CONFIG
 
-export SWAPFILE_SIZE="${SWAPFILE_SIZE:-}"
-
 resolve_trusted_cidrs
 resolve_publish
 
-# An explicit whitelist, so shell-looking text in the configs (e.g. "$SIZE" in
-# swapfile-setup.sh) survives untouched.
+# An explicit whitelist, not a blanket envsubst: the console password_hash is
+# crypt text full of $-fields ($6$salt$...) that a blanket substitution would
+# silently eat, locking out the break-glass login.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
-            ${TRUSTED_CIDRS} ${ZRAM_CONFIG} ${SWAPFILE_SIZE}'
+            ${TRUSTED_CIDRS} ${ZRAM_CONFIG}'
 
 DST="${OUT_DIR}/pocketbastion.ign"
 echo "Rendering -> $DST"

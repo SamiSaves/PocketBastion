@@ -9,15 +9,11 @@ RemainAfterExit=yes
 ExecStart=/usr/bin/mkdir -p \
   /mnt/state/repos \
   /mnt/state/opencode \
-  /mnt/state/npm-cache \
-  /mnt/state/pnpm-store \
   /mnt/state/secrets
 # Rootless containers run as core (UID 1000) and need to write these.
 ExecStart=/usr/bin/chown 1000:1000 \
   /mnt/state/repos \
   /mnt/state/opencode \
-  /mnt/state/npm-cache \
-  /mnt/state/pnpm-store \
   /mnt/state/secrets
 ExecStart=/usr/bin/chmod 700 /mnt/state/secrets
 # Quadlet EnvironmentFile has no optional variant, so this must always exist.

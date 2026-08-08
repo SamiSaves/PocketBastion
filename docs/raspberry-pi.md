@@ -61,12 +61,12 @@ DEPLOY_ENV=deploy.vm.env make local-up
 OPENCODE_MEMORY_MAX=2g
 OPENCODE_MEMORY_SWAP=3g
 ZRAM_SIZE=1024
-SWAPFILE_SIZE=                # leave EMPTY
 ```
 
-`SWAPFILE_SIZE` writes `/var/swapfile` to the microSD, and swapping to flash is
-the fastest way to wear a card out. `ZRAM_SIZE` gives compressed swap in RAM
-instead, at no cost in writes.
+`ZRAM_SIZE` is the only swap the box has: compressed, in RAM, never touching the
+card. It is a spike absorber, not extra memory — the kernel pages to it only
+under pressure. Leave it empty and there is no swap at all; the OOM killer takes
+the container instead.
 
 ## 3. Flash
 
@@ -174,7 +174,7 @@ Ignition.
 | | |
 |---|---|
 | ESP vs `bootupd` | Untested whether an `rpm-ostree upgrade` preserves the U-Boot files added to the ESP. |
-| microSD wear | npm installs, git clones and caches all land on flash. Mitigated by `noatime` and by leaving `SWAPFILE_SIZE` empty. A USB SSD is the real answer. |
+| microSD wear | npm installs, git clones and caches all land on flash. Mitigated by `noatime` and by swapping to zram rather than the card. A USB SSD is the real answer. |
 | Wi-Fi | Not supported; needs NetworkManager keyfiles in Ignition. |
 
 ## 9. Reference
