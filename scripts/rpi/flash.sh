@@ -269,8 +269,9 @@ echo "Done. FCOS ${FCOS_RELEASE} written to ${DEVICE}."
 if [[ "$ARCH" == "aarch64" ]]; then
   cat <<EOF
 
-Put the card in the Pi, attach ethernet, power on. First boot takes 3-5 minutes,
-then ssh core@pocketbastion-rpi. See docs/raspberry-pi.md for the setup that
-follows.
+Put the card in the Pi, attach ethernet, power on. First boot takes 3-5 minutes.
+Find it on the network (hostname pocketbastion-rpi, but FCOS runs no mDNS, so
+that name resolves only if your router registers DHCP hostnames) and
+ssh core@<ip>. See docs/raspberry-pi.md for the setup that follows.
 EOF
 fi

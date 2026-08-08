@@ -17,24 +17,17 @@ this same config through this same flasher.
 | Card | 32 GB microSD minimum, 64 GB comfortable. High-endurance is worth it. |
 | Network | **Ethernet.** Wi-Fi would need NetworkManager keyfiles in Ignition, which this config does not do. |
 | Firmware | The Pi's **EEPROM must be updated first** — see below. |
-| Host tools | `podman`, `sudo`, `jq`, `lsblk`, `sfdisk`, `rsync`, `envsubst` |
+| Host tools | `podman`, `sudo`, `curl`, `jq`, `lsblk`, `sfdisk`, `rsync`, `envsubst` |
 
 ### Update the EEPROM first
 
-Fedora CoreOS ships a FAT16 EFI system partition, and older Pi EEPROMs cannot
-read one. A Pi with an old EEPROM shows nothing at all — no HDMI, no network —
-which is indistinguishable from a dozen other faults.
-
-Use `rpi-imager` to write the EEPROM updater to a throwaway card, boot it once,
-then continue.
+Older Pi EEPROMs cannot read the FAT16 ESP that FCOS ships, and a Pi with an old
+EEPROM shows nothing at all — no HDMI, no network. Write the `rpi-imager` EEPROM
+updater to a throwaway card and boot it once first.
 
 ## 2. Configure
 
-```bash
-cp deploy.env.example deploy.env
-```
-
-Set your SSH public key, then who may reach the Pi:
+Fill in `deploy.env` (see the [README](../README.md)); the Pi-specific values are:
 
 ```bash
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"
@@ -44,18 +37,12 @@ SERVER_HOST=pocketbastion-rpi.lan   # or the DHCP address
 ```
 
 `TRUSTED_CIDRS` is the entire access-control boundary in front of an AI agent
-with a shell. The render refuses an empty value or `0.0.0.0/0`, and the firewall
-falls back to a full lockdown if it is ever emptied by hand afterwards.
-
-The mock sits on libvirt's network rather than your LAN, so it needs a different
-`TRUSTED_CIDRS`. Keep `deploy.env` for the Pi, copy it to `deploy.vm.env`, and
-point the mock at the copy:
-
-```bash
-DEPLOY_ENV=deploy.vm.env make local-up
-```
+with a shell. The render refuses an empty value, `0.0.0.0/0` or `0/0`, and the
+firewall falls back to a full lockdown if it is ever emptied by hand afterwards.
 
 ### Tune for 4 GB of RAM and a flash card
+
+`deploy.env.example` already ships these values, sized for a 4 GB board:
 
 ```bash
 OPENCODE_MEMORY_MAX=2g
@@ -63,10 +50,8 @@ OPENCODE_MEMORY_SWAP=3g
 ZRAM_SIZE=1024
 ```
 
-`ZRAM_SIZE` is the only swap the box has: compressed, in RAM, never touching the
-card. It is a spike absorber, not extra memory — the kernel pages to it only
-under pressure. Leave it empty and there is no swap at all; the OOM killer takes
-the container instead.
+`ZRAM_SIZE` is the only swap the box has; empty means none, and the OOM killer
+takes the container instead.
 
 ## 3. Flash
 
@@ -101,27 +86,19 @@ Find it on the network (hostname `pocketbastion-rpi`) and `ssh core@<ip>`.
 
 ## 4. One-time setup
 
-Everything here lives on `/mnt/state` and survives reflashes.
-
-**Set an OpenCode server password.** The UI is plaintext HTTP on your LAN, so it
-is the only credential in front of an agent with a shell. You log in as
-`opencode` with it.
-
-```bash
-printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(openssl rand -base64 24)" \
-  > /mnt/state/secrets/opencode.env
-chmod 600 /mnt/state/secrets/opencode.env
-systemctl --user restart opencode.service
-```
-
-Add provider keys to the same file, one per line (`ANTHROPIC_API_KEY=…`). For
-interactive logins: `podman exec -it opencode opencode auth login`.
+Continue with **Post-install setup** in the [README](../README.md). Everything
+it does lives on `/mnt/state` and survives reflashes.
 
 ## 5. Day-to-day
 
 ```bash
 make repo-add REPO=git@github.com:owner/name.git
 ```
+
+A reflash regenerates the box's host key, so the `repo-*` targets then refuse to
+connect with `REMOTE HOST IDENTIFICATION HAS CHANGED`. Clear the old key with
+`ssh-keygen -R <the SERVER_HOST from deploy.env>` rather than turning host key
+checking off.
 
 To change anything in `deploy.env`, re-flash. Repos, sessions, caches, secrets
 and deploy keys are all on `/mnt/state` and come back untouched.
@@ -176,6 +153,7 @@ Ignition.
 |---|---|
 | ESP vs `bootupd` | Untested whether an `rpm-ostree upgrade` preserves the U-Boot files added to the ESP. |
 | microSD wear | npm installs, git clones and caches all land on flash. Mitigated by `noatime` and by swapping to zram rather than the card. A USB SSD is the real answer. |
+| Root can fill | Podman's image store and the container's writable layer are on the 16 GiB root partition, not `/mnt/state`, and root cannot grow. Anything the agent writes outside `/data` and `/repos` counts against it; filling it wedges the box and recovery is a reflash. |
 | Wi-Fi | Not supported; needs NetworkManager keyfiles in Ignition. |
 
 ## 9. Reference
