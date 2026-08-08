@@ -1,15 +1,12 @@
-.PHONY: help ignition-local ignition-do ignition-rpi validate \
+.PHONY: help ignition-local ignition-rpi validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
         wg-server-pubkey wg-add-peer \
         repo-add repo-list repo-remove \
-        tf-plan tf-apply tf-destroy \
         clean
 
 BUTANE_IMAGE := quay.io/coreos/butane:release
 VM_NAME      := pocketbastion-local
-TF_DIR       := terraform/digitalocean
-TFVARS       := $(abspath deploy.tfvars)
 DEPLOY_ENV   := $(abspath deploy.env)
 
 # Where the management targets connect. An environment variable wins; otherwise
@@ -25,9 +22,6 @@ help: ## Show this help
 
 ignition-local: ## Render local Ignition config from Butane (injects SSH key)
 	@bash scripts/render-ignition.sh local
-
-ignition-do: ## Render DigitalOcean Ignition config from Butane
-	@bash scripts/render-ignition.sh do
 
 ignition-rpi: ## Render Raspberry Pi Ignition config from Butane
 	@bash scripts/render-ignition.sh rpi
@@ -87,21 +81,3 @@ repo-list: ## List repos the VM has git access to
 
 repo-remove: ## Revoke the VM's access to a repo  (NAME=host-owner-name [PURGE=1])
 	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1 true yes,$(PURGE)),--purge,)
-
-# ── DigitalOcean (Terraform) ──────────────────────────────────────
-# Both read the root ./deploy.tfvars. Set TF_VAR_do_token in your env first.
-
-tf-plan: ## Terraform plan for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
-	@set -a; . "$(DEPLOY_ENV)"; set +a; \
-		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
-		cd $(TF_DIR) && terraform init -input=false && terraform plan -var-file="$(TFVARS)"
-
-tf-apply: ## Terraform apply for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
-	@set -a; . "$(DEPLOY_ENV)"; set +a; \
-		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
-		cd $(TF_DIR) && terraform init -input=false && terraform apply -var-file="$(TFVARS)"
-
-tf-destroy: ## Terraform destroy for DigitalOcean (uses ./deploy.tfvars + deploy.env SSH key)
-	@set -a; . "$(DEPLOY_ENV)"; set +a; \
-		export TF_VAR_ssh_authorized_key="$$SSH_AUTHORIZED_KEY"; \
-		cd $(TF_DIR) && terraform init -input=false && terraform destroy -var-file="$(TFVARS)"

@@ -7,8 +7,7 @@ web UI on Fedora CoreOS so you can code from anywhere, including your phone,
 without exposing anything to the public internet. The OS is disposable; the
 repos, OpenCode sessions, caches and configs on `/mnt/state` survive a rebuild.
 
-Supported platforms: **DigitalOcean**, **local KVM/libvirt**, and
-**Raspberry Pi 4**.
+Supported platforms: **Raspberry Pi 4** and **local KVM/libvirt**.
 
 ## Network modes
 
@@ -98,9 +97,8 @@ Host pocketbastion
 Follow the guide for your platform — each covers its prerequisites, creating the
 server, and connecting to it:
 
-- [DigitalOcean](docs/digitalocean.md)
-- [Local (KVM/libvirt)](docs/local.md)
 - [Raspberry Pi 4](docs/raspberry-pi.md)
+- [Local (KVM/libvirt)](docs/local.md)
 
 ### 4. Post-install setup
 
@@ -197,9 +195,8 @@ per-repo deploy key directly — a leaked key grants write to only that one repo
 ## Managing the server
 
 Platform lifecycle commands live in the platform guides
-([DigitalOcean](docs/digitalocean.md#managing-the-droplet),
-[Local](docs/local.md#managing-the-vm),
-[Raspberry Pi](docs/raspberry-pi.md#5-day-to-day)). Common targets:
+([Raspberry Pi](docs/raspberry-pi.md#5-day-to-day),
+[Local](docs/local.md#managing-the-vm)). Common targets:
 
 ```bash
 make wg-server-pubkey   # fetch the server WireGuard key (wireguard mode)
@@ -220,8 +217,8 @@ base.bu  *+  <platform>.bu  *+  [features/<feature>.bu ...]
 
 - **`base.bu`** — everything shared: the `core` user, sshd hardening, the
   OpenCode container and its build, git setup, the firewall script, swap.
-- **`<platform>.bu`** — only what differs: `local.bu`, `digitalocean.bu`,
-  `rpi.bu` (hostname, how `/mnt/state` is provided).
+- **`<platform>.bu`** — only what differs: `local.bu` and `rpi.bu` (hostname,
+  how `/mnt/state` is provided).
 - **`features/`** — optional layers. `wireguard.bu` is merged in only when
   `NETWORK_MODE=wireguard`; in `lan` mode not a single WireGuard file, unit or
   address is present in the output.
@@ -236,7 +233,7 @@ rejects it.
 make validate       # shellcheck, systemd-analyze, render every platform/mode
 ```
 
-`make validate` renders all three platforms and asserts the layering: that every
+`make validate` renders both platforms and asserts the layering: that every
 shared block reaches every platform, that each platform gets only its own disk
 layout, and that `lan` mode emits no WireGuard file, unit or address at all.
 
@@ -272,5 +269,4 @@ asserted at render time only.
 - Small security audit
 - Make core os password configurable
 - Consider DNS for VM
-- Conisder DNS to recover wireguard automatically from a droplet ip change
 - Consider custom web UI for managing the server

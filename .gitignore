@@ -2,21 +2,8 @@
 config/ignition/*.ign
 images/
 
-# Top-level editable deploy configs (real files; *.example templates are tracked)
-/deploy.tfvars
+# Top-level editable deploy config (real file; the *.example template is tracked)
 /deploy.env
-
-# Terraform state and sensitive outputs
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/*.tfvars
-terraform/digitalocean/.terraform/
-terraform/digitalocean/.terraform.lock.hcl
-terraform/digitalocean/*.tfstate
-terraform/digitalocean/*.tfstate.backup
-terraform/digitalocean/*.tfvars
 
 # Local secrets — SSH keys, WireGuard keys, deploy keys (never commit)
 secrets/

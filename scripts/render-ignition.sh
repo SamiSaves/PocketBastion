@@ -5,7 +5,7 @@
 #
 # deep-merged with yq, substituted from ./deploy.env, piped to Butane --strict.
 #
-# Usage:   scripts/render-ignition.sh [local|do|rpi]   (default: local)
+# Usage:   scripts/render-ignition.sh [local|rpi]   (default: local)
 # Requires: podman, envsubst (gettext)
 set -euo pipefail
 
@@ -140,12 +140,6 @@ SUBST_VARS='${SSH_AUTHORIZED_KEY} ${WG_BOOTSTRAP_PUBKEY} ${WG_BOOTSTRAP_IP}
 
 render() {
   local platform="$1" dst="$2"
-  if [[ "$platform" == "digitalocean" && "$NETWORK_MODE" == "lan" ]]; then
-    die "NETWORK_MODE=lan is refused for DigitalOcean: the droplet is on the
-       public internet. Use a separate deploy.env for the LAN box:
-         DEPLOY_ENV=deploy.rpi.env make ignition-rpi"
-  fi
-
   echo "Rendering ${platform} [mode=${NETWORK_MODE}] -> $dst"
   mkdir -p "$(dirname "$dst")"
   podman run --rm -v "${BUTANE_DIR}":/w:ro "$YQ_IMAGE" \
@@ -160,10 +154,9 @@ render() {
 
 case "${1:-local}" in
   local) render local "${OUT_DIR}/local.ign" ;;
-  do|digitalocean) render digitalocean "${OUT_DIR}/digitalocean.ign" ;;
   rpi) render rpi "${OUT_DIR}/rpi.ign" ;;
   *)
-    echo "Usage: $0 [local|do|rpi]" >&2
+    echo "Usage: $0 [local|rpi]" >&2
     exit 1
     ;;
 esac

@@ -40,16 +40,15 @@ bad() { echo "FAIL: $*"; fail=1; }
 assert() { grep -q -- "$1" "$2" || bad "expected '$1' in $(basename "$2")"; }
 refute() { grep -q -- "$1" "$2" && bad "'$1' must NOT be in $(basename "$2")"; return 0; }
 
-echo "== wireguard mode: local + digitalocean + rpi"
-for target in local digitalocean rpi; do
+echo "== wireguard mode: local + rpi"
+for target in local rpi; do
   render "$target" NETWORK_MODE=wireguard >/dev/null
 done
 
 LOCAL="$OUT/local.ign"
-DO="$OUT/digitalocean.ign"
 RPI="$OUT/rpi.ign"
 
-for ign_file in "$LOCAL" "$DO" "$RPI"; do
+for ign_file in "$LOCAL" "$RPI"; do
   assert "/usr/local/sbin/firewall-setup.sh"                      "$ign_file"
   assert "/usr/local/sbin/git-setup.sh"                           "$ign_file"
   assert "/etc/containers/systemd/users/1000/opencode.container"  "$ign_file"
@@ -72,10 +71,6 @@ done
 assert "/etc/containers/systemd/users/1000/hello.container" "$LOCAL"
 assert "What=/dev/vdb"                                      "$LOCAL"
 refute "by-label/state"                                     "$LOCAL"
-
-assert "What=/dev/disk/by-label/state" "$DO"
-refute "hello.container"               "$DO"
-refute "What=/dev/vdb"                 "$DO"
 
 assert "coreos-boot-disk"          "$RPI"
 assert "by-partlabel/state"        "$RPI"

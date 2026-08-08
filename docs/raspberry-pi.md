@@ -48,8 +48,9 @@ falls back to a full lockdown if it is ever emptied by hand afterwards.
 To have the Pi run its own WireGuard instead, set `NETWORK_MODE=wireguard` and
 fill in the bootstrap peer as described in [wireguard.md](wireguard.md).
 
-Already running a WireGuard droplet from `deploy.env`? Keep that file as-is,
-copy it to `deploy.rpi.env` with `NETWORK_MODE=lan`, and prefix the Pi commands:
+Running the local VM from `deploy.env` in a different mode? Keep that file
+as-is, copy it to `deploy.rpi.env` with `NETWORK_MODE=lan`, and prefix the Pi
+commands:
 
 ```bash
 export DEPLOY_ENV=deploy.rpi.env

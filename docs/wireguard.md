@@ -55,7 +55,7 @@ PersistentKeepalive = 25
 ```
 
 The `PublicKey` and `Endpoint` placeholders come from the server once it exists;
-the local/DO deploy steps tell you where to get them.
+the local/Pi deploy steps tell you where to get them.
 
 ## Bringing the tunnel up
 
