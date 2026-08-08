@@ -1,8 +1,7 @@
 .PHONY: help ignition validate \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
-        repo-add repo-list repo-remove \
-        clean
+        repo-add repo-list repo-remove
 
 # ?= so `DEPLOY_ENV=deploy.vm.env make repo-add` reads SERVER_HOST from the file
 # it renders from. With := the env var lost and the target hit the wrong box.
@@ -40,8 +39,10 @@ rpi-flash: ## Flash FCOS + U-Boot to a microSD, preserving /mnt/state  (DEVICE=/
 local-up: ## Flash and boot the mock VM (reflash if it exists; keeps /mnt/state)
 	@./scripts/local/create-vm.sh
 
+# Both || true: destroying a VM that is not there is a no-op, not a failure.
 local-down: ## Remove the mock VM, keep its disk image
-	@./scripts/local/destroy-vm.sh
+	@virsh --connect qemu:///system destroy pocketbastion-local 2>/dev/null || true
+	@virsh --connect qemu:///system undefine pocketbastion-local 2>/dev/null || true
 
 local-wipe-state: ## Permanently delete the mock's disk image (DATA LOSS — prompts for confirmation)
 	@./scripts/local/wipe-state.sh
@@ -49,17 +50,16 @@ local-wipe-state: ## Permanently delete the mock's disk image (DATA LOSS — pro
 local-ip: ## Print the mock VM's address on the libvirt network
 	@./scripts/local/ip.sh
 
+# The address is DHCP-assigned, so it is looked up per call — deliberately NOT
+# SERVER_HOST, which points at the real box. Host keys are thrown away, unlike
+# the repo-* scripts: the mock is reflashed constantly and its key changes.
 local-ssh: ## SSH into the mock VM
-	@./scripts/local/ssh.sh
+	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+	  core@$$(./scripts/local/ip.sh)
 
 local-console: ## Open serial console for the mock VM
-	@./scripts/local/console.sh
-
-# ── Cleanup ───────────────────────────────────────────────────────────────────
-
-clean: ## Remove generated Ignition files
-	@rm -f config/ignition/*.ign
-	@echo "Cleaned generated Ignition files."
+	@echo "Exit with: Ctrl+]"
+	@virsh --connect qemu:///system console pocketbastion-local
 
 # ── GitHub repositories ──────────────────────────────────────────────────────
 
@@ -70,4 +70,4 @@ repo-list: ## List repos the box has git access to
 	@scripts/repo-list.sh
 
 repo-remove: ## Revoke the box's access to a repo  (NAME=host-owner-name [PURGE=1])
-	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1 true yes,$(PURGE)),--purge,)
+	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1,$(PURGE)),--purge,)

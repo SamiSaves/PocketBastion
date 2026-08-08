@@ -36,7 +36,7 @@ err()  { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
 
 for tool in virsh virt-install losetup; do
-  command -v "$tool" >/dev/null 2>&1 || err "'$tool' not found. Run scripts/local/prereqs.sh."
+  command -v "$tool" >/dev/null 2>&1 || err "'$tool' not found. Install it and retry."
 done
 
 (( VM_DISK_GB >= 24 )) || err "VM_DISK_GB=${VM_DISK_GB} is too small; root alone is 16 GiB. Use 24 or more."

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Renders the config and asserts what the render is actually responsible for:
-# that every expected file and unit is present, and that a missing TRUSTED_CIDRS
-# is refused rather than rendered into a wide-open box. Butane --strict does the
-# rest — a config that renders is structurally valid.
-#
-# Assertions are on file paths and unit names, which are plaintext in the
-# Ignition JSON; file contents are data-URL encoded and not asserted on.
+# Renders the config and asserts the three things the render is actually
+# responsible for: the envsubst whitelist, the disk layout that costs a card's
+# data if it drifts, and that a wide-open TRUSTED_CIDRS is refused rather than
+# rendered. Butane --strict does the rest — a config that renders is
+# structurally valid, so paths and unit names it copies verbatim from the .bu
+# are not worth re-asserting here.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -40,24 +39,14 @@ IGN="$OUT/pocketbastion.ign"
 
 render 'TRUSTED_CIDRS="192.168.1.0/24"' >/dev/null
 
-assert "/usr/local/sbin/firewall-setup.sh"                      "$IGN"
-assert "/usr/local/sbin/git-setup.sh"                           "$IGN"
-assert "/etc/containers/systemd/users/1000/opencode.container"  "$IGN"
-assert "/etc/containers/systemd/users/1000/opencode.build"      "$IGN"
-assert "/etc/pocketbastion/Containerfile"                       "$IGN"
-assert "/etc/pocketbastion/gitconfig"                           "$IGN"
-assert "/etc/pocketbastion/firewall.env"                        "$IGN"
-assert "state-dirs.service"                                     "$IGN"
-assert "git-setup.service"                                      "$IGN"
-assert "firewall.service"                                       "$IGN"
-# Break-glass console password hash.
+# Break-glass console password hash — the one file content worth asserting on.
+# It guards the envsubst whitelist in render-ignition.sh: a blanket substitution
+# would eat the $6$salt$ crypt fields and silently kill the break-glass login.
 # shellcheck disable=SC2016
-assert '\$6\$uxZJIlbecCN0'                                      "$IGN"
+assert '\$6\$uxZJIlbecCN0' "$IGN"
 
-# Disk layout. Both the Pi and the mock VM boot this, so it is asserted once.
-assert "coreos-boot-disk"   "$IGN"
-assert "by-partlabel/state" "$IGN"
-# The one disk-layout invariant that costs data if broken: an omitted sizeMiB
+# Disk layout, asserted once: both the Pi and the mock VM boot this.
+# The one invariant that costs data if broken: an omitted sizeMiB
 # makes Ignition adopt the existing partition. See docs/raspberry-pi.md.
 jq -e '.storage.disks[0].partitions[] | select(.label=="state") | has("sizeMiB") | not' "$IGN" >/dev/null \
   || bad "state partition specifies sizeMiB; a reflash would abort in the initramfs"

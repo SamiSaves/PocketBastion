@@ -19,7 +19,9 @@ firewall, the OpenCode container, git access — is the real thing.
 ## Prerequisites
 
 ```bash
-./scripts/local/prereqs.sh   # prints the install command if anything is missing
+sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients virtinst \
+  util-linux fdisk rsync gettext-base jq make curl git podman
+sudo adduser "$USER" libvirt && sudo adduser "$USER" kvm   # then log out and back in
 ```
 
 No image download and no libvirt pool setup: `make local-up` fetches the FCOS

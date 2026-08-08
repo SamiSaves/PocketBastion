@@ -76,10 +76,6 @@ $1
   chain forward {
     type filter hook forward priority filter; policy drop;
   }
-
-  chain output {
-    type filter hook output priority filter; policy accept;
-  }
 }
 EOF
 }
