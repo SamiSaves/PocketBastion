@@ -1,4 +1,4 @@
-.PHONY: help ignition validate \
+.PHONY: help ignition validate admin-hash \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
         repo-add repo-list repo-remove
@@ -22,6 +22,9 @@ help: ## Show this help
 
 ignition: ## Render the Ignition config from Butane (injects SSH key)
 	@bash scripts/render-ignition.sh
+
+admin-hash: ## Print an ADMIN_PASSWORD_HASH line for deploy.env (prompts)
+	@bash scripts/admin-hash.sh
 
 # ── Validation ──────────────────────────────────────────────────────────────
 

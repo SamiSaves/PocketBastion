@@ -16,15 +16,18 @@ NFT_CONF=/etc/nftables/pocketbastion.nft
 
 TRUSTED_CIDRS=""
 OPENCODE_PORTS=""
+ADMIN_PORT=""
 
 if [[ -r "$FW_ENV" ]]; then
   # The one command here that can fail. A half-sourced file can leave
-  # TRUSTED_CIDRS partly assigned, so reset both rather than trust what landed.
+  # TRUSTED_CIDRS partly assigned, so reset all three rather than trust what
+  # landed.
   # shellcheck source=/dev/null
   source "$FW_ENV" || {
     echo "WARNING: $FW_ENV did not parse. Locking down." >&2
     TRUSTED_CIDRS=""
     OPENCODE_PORTS=""
+    ADMIN_PORT=""
   }
 else
   echo "WARNING: $FW_ENV missing. Locking down." >&2
@@ -49,8 +52,10 @@ BANNER="LOCKDOWN — no TRUSTED_CIDRS"
 if [[ -z "${TRUSTED_CIDRS// /}" ]]; then
   echo "ERROR: no TRUSTED_CIDRS in ${FW_ENV}. Locking down." >&2
 else
-  BANNER="SSH and OpenCode open to ${TRUSTED_CIDRS}"
-  TRUST_RULE="    ip saddr $(nft_set "$TRUSTED_CIDRS") tcp dport $(nft_set "22 ${OPENCODE_PORTS}") accept"
+  BANNER="SSH, OpenCode and the admin UI open to ${TRUSTED_CIDRS}"
+  # An empty ADMIN_PORT just drops out of the set: nft_set word-splits, so the
+  # box still firewalls correctly on a config rendered before the admin UI.
+  TRUST_RULE="    ip saddr $(nft_set "$TRUSTED_CIDRS") tcp dport $(nft_set "22 ${ADMIN_PORT} ${OPENCODE_PORTS}") accept"
 fi
 
 write_ruleset() {  # <trust-rule>

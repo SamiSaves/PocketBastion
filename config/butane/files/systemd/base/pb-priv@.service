@@ -1,0 +1,9 @@
+[Unit]
+Description=Admin UI privileged helper (connection %i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pb-priv.sh
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal

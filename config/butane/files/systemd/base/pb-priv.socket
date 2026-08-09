@@ -1,0 +1,15 @@
+[Unit]
+Description=Admin UI privileged helper socket
+
+[Socket]
+ListenStream=/run/pb-priv.sock
+# Root owns it; core's group can connect. That is the only channel the admin UI
+# container has to anything privileged.
+SocketUser=root
+SocketGroup=core
+SocketMode=0660
+# One helper process per connection, started as root, gone when it returns.
+Accept=yes
+
+[Install]
+WantedBy=sockets.target

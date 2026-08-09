@@ -76,6 +76,54 @@ resolve_publish() {
   export OPENCODE_PUBLISH OPENCODE_PORTS
 }
 
+# ── Admin UI (docs/admin-ui.md) ───────────────────────────────────────────────
+# Understands the "5173-5180" range form OPENCODE_EXTRA_PORTS accepts, so a
+# collision *inside* a range is caught too, not just an exact match.
+port_in_set() {  # <port> <port-or-range>...
+  local p="$1" item lo hi
+  shift
+  for item in "$@"; do
+    if [[ "$item" == *-* ]]; then
+      lo="${item%%-*}"
+      hi="${item##*-}"
+      if ((p >= lo && p <= hi)); then return 0; fi
+    elif [[ "$p" == "$item" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Runs after resolve_publish: the collision check needs the final port list.
+resolve_admin() {
+  local re='^scrypt:[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$'
+
+  [[ -n "${ADMIN_PASSWORD_HASH:-}" && "$ADMIN_PASSWORD_HASH" != *REPLACE_ME* ]] \
+    || die "ADMIN_PASSWORD_HASH is not set in ${DEPLOY_ENV}.
+       It is the initial admin UI password. Generate one:
+         make admin-hash"
+  [[ "$ADMIN_PASSWORD_HASH" =~ $re ]] \
+    || die "ADMIN_PASSWORD_HASH is not a hash from 'make admin-hash'.
+       Expected scrypt:<salt>:<hash>."
+
+  [[ "${ADMIN_PORT:-}" =~ ^[0-9]+$ ]] \
+    || die "ADMIN_PORT is not set to a number in ${DEPLOY_ENV}, e.g.:
+         ADMIN_PORT=8080"
+  ((ADMIN_PORT > 1024 && ADMIN_PORT < 65536)) \
+    || die "ADMIN_PORT=${ADMIN_PORT} is out of range. Use 1025-65535 — below 1024
+       the admin UI would need CAP_NET_BIND_SERVICE to bind at all."
+
+  # Without this the box boots fine and the admin UI silently loses the port to
+  # a dev server, which presents as "my dev server is the admin page".
+  # shellcheck disable=SC2086  # deliberate split of the port list
+  if port_in_set "$ADMIN_PORT" 22 $OPENCODE_PORTS; then
+    die "ADMIN_PORT=${ADMIN_PORT} collides with SSH or a published OpenCode port
+       (22 ${OPENCODE_PORTS}). Pick another."
+  fi
+
+  export ADMIN_PORT ADMIN_PASSWORD_HASH
+}
+
 # ── Memory guardrails (all optional; empty = off, for larger hosts) ───────────
 # Sizes are passed through as written: podman, systemd and zram-generator each
 # reject a malformed one with a better message than this script could give.
@@ -105,6 +153,7 @@ export ZRAM_CONFIG
 
 resolve_trusted_cidrs
 resolve_publish
+resolve_admin
 
 # An explicit whitelist, not a blanket envsubst: a blanket run would also eat
 # any literal $-text this config grows later (crypt hashes, shell fragments,
@@ -112,7 +161,8 @@ resolve_publish
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
-            ${TRUSTED_CIDRS} ${ZRAM_CONFIG}'
+            ${TRUSTED_CIDRS} ${ZRAM_CONFIG}
+            ${ADMIN_PORT} ${ADMIN_PASSWORD_HASH}'
 
 DST="${OUT_DIR}/pocketbastion.ign"
 echo "Rendering -> $DST"

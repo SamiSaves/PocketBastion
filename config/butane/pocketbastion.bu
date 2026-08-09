@@ -101,6 +101,17 @@ storage:
         inline: |
           TRUSTED_CIDRS="${TRUSTED_CIDRS}"
           OPENCODE_PORTS="${OPENCODE_PORTS}"
+          ADMIN_PORT="${ADMIN_PORT}"
+    # The INITIAL admin UI password (docs/admin-ui.md). Seeded to
+    # /mnt/state/admin on first start and never read again unless that copy is
+    # deleted, so changing the password in the UI survives a reflash and this
+    # value does not come back. 0644 is fine: it is a scrypt hash, and anything
+    # that can read /etc on this box is already root or core.
+    - path: /etc/pocketbastion/admin.hash
+      mode: 0644
+      contents:
+        inline: |
+          ${ADMIN_PASSWORD_HASH}
     # FCOS ships no zram config of its own, so this file is the only thing that
     # turns swap on at all. Empty ZRAM_SIZE renders it empty: no swap, and the
     # kernel OOM-kills instead. There is deliberately no on-disk swap — /var is
@@ -131,6 +142,12 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/git-setup.sh
+    # The entire root API available to the admin UI, behind pb-priv.socket.
+    # Adding a verb to it is a security review; see docs/admin-ui.md.
+    - path: /usr/local/sbin/pb-priv.sh
+      mode: 0750
+      contents:
+        local: files/usr/local/sbin/pb-priv.sh
     # Commit identity for git inside the container, baked from deploy.env at
     # render time. git-setup.sh installs it as the container's ~/.gitconfig.
     # core.sshCommand forces our ssh config: ssh looks in the passwd home (/root),
@@ -155,3 +172,10 @@ systemd:
     - name: firewall.service
       enabled: true
       contents_local: files/systemd/base/firewall.service
+    # Socket-activated, so no privileged process is running between requests.
+    # Only the socket is enabled; the template is started per connection.
+    - name: pb-priv.socket
+      enabled: true
+      contents_local: files/systemd/base/pb-priv.socket
+    - name: pb-priv@.service
+      contents_local: files/systemd/base/pb-priv@.service
