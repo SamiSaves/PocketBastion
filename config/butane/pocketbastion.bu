@@ -10,11 +10,9 @@ passwd:
     # The core user (UID 1000) owns the rootless Quadlet containers; SSH key
     # injected at render time.
     #
-    # password_hash is a PUBLIC default for break-glass serial console login
-    # only. Not a network credential: sshd is key-only and the firewall only
-    # answers TRUSTED_CIDRS. Change it on first console login (README).
+    # No password_hash on purpose: the account has no password login at all, so
+    # an HDMI keyboard or a serial adapter gets no shell. Recovery is a reflash.
     - name: core
-      password_hash: "$6$uxZJIlbecCN0.R4V$uEOl0OUAciUTCoeuzZLooVYni9Mr9jHTfZRHDs8QaieEWp0o0kZJ7eviUFHeutibqDA/jAb/E/1DGDTtVuIQ51"
       ssh_authorized_keys:
         - "${SSH_AUTHORIZED_KEY}"
       groups:

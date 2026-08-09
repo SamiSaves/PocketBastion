@@ -19,7 +19,7 @@ put it on a LAN you reach over your own VPN, and never port-forward to it.
 | Services bind to | `0.0.0.0`, filtered by nftables |
 | Exposed | SSH + the published ports, to `TRUSTED_CIDRS` only |
 | Everything else | Dropped |
-| Break-glass | Serial console |
+| Break-glass | None — a serial console shows the boot, but there is no login |
 
 The render **refuses** to produce a config without `TRUSTED_CIDRS` and rejects
 `0.0.0.0/0`. The UI is plaintext HTTP, so set a server password on the box.
@@ -158,9 +158,9 @@ that would otherwise cost you the data on a real card.
 
 ## Security notes
 
-- The `core` user has a **public, default console password** (`space-depend-south`)
-  for break-glass only. Change it on your first console login; sshd is key-only,
-  so it is never usable over the network.
+- The `core` user has **no password**: a console or serial adapter gets you no
+  login, SSH is key-only, and recovery from a lockout is a reflash — which keeps
+  `/mnt/state`.
 - The render refuses an empty `TRUSTED_CIDRS`, `0.0.0.0/0` or `0/0`;
   `firewall.env` emptied by hand afterwards locks the box down, but a hand-edited
   `0.0.0.0/0` there is applied as written — the render is the only gate on it.
@@ -176,6 +176,5 @@ that would otherwise cost you the data on a real card.
 
 - Improve security stance on opencode container, see if we can avoid it having so many secrets, such as git ssh keys
 - See if we could host vscode server for better development experience
-- Make core os password configurable
 - Consider DNS for the Pi
 - Consider custom web UI for managing the server

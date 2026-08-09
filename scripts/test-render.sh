@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Renders the config and asserts the three things the render is actually
-# responsible for: the envsubst whitelist, the disk layout that costs a card's
-# data if it drifts, and that a wide-open TRUSTED_CIDRS is refused rather than
-# rendered. Butane --strict does the rest — a config that renders is
-# structurally valid, so paths and unit names it copies verbatim from the .bu
-# are not worth re-asserting here.
+# Renders the config and asserts the two things the render is actually
+# responsible for: the disk layout that costs a card's data if it drifts, and
+# that a wide-open TRUSTED_CIDRS is refused rather than rendered. Butane
+# --strict does the rest — a config that renders is structurally valid, so paths
+# and unit names it copies verbatim from the .bu are not worth re-asserting here.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,17 +32,9 @@ render() {
 fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 
-assert() { grep -q -- "$1" "$2" || bad "expected '$1' in $(basename "$2")"; }
-
 IGN="$OUT/pocketbastion.ign"
 
 render 'TRUSTED_CIDRS="192.168.1.0/24"' >/dev/null
-
-# Break-glass console password hash — the one file content worth asserting on.
-# It guards the envsubst whitelist in render-ignition.sh: a blanket substitution
-# would eat the $6$salt$ crypt fields and silently kill the break-glass login.
-# shellcheck disable=SC2016
-assert '\$6\$uxZJIlbecCN0' "$IGN"
 
 # Disk layout, asserted once: both the Pi and the mock VM boot this.
 # The one invariant that costs data if broken: an omitted sizeMiB

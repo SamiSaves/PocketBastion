@@ -68,8 +68,8 @@ info "Attached ${DISK} as ${LOOP}"
 trap "sudo losetup --detach '$LOOP' 2>/dev/null || true" EXIT
 
 # ARCH: the host's, not the Pi's. CONSOLE: FCOS metal defaults to the graphical
-# console, and without this `make local-console` would show nothing — which is
-# the break-glass path the mock most needs to keep.
+# console, and without this `make local-console` would show nothing — and
+# watching a failed boot is what the mock is for.
 # FLASH_YES: safe here and nowhere else; this script allocated the target.
 ARCH="$(uname -m)" CONSOLE="ttyS0,115200n8" FLASH_YES=1 \
   "${REPO_ROOT}/scripts/rpi/flash.sh" "$LOOP"
@@ -101,7 +101,7 @@ cat <<EOF
 VM '${VM_NAME}' is booting. First boot takes 3-5 minutes: it creates the state
 filesystem, grows root, then builds the OpenCode container image.
 
-  make local-console   # watch it boot / break-glass, no network needed
+  make local-console   # watch it boot, no network needed
   make local-ip        # its address on the libvirt network
   make local-ssh       # ssh core@ its libvirt address
 EOF

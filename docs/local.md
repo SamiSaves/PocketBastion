@@ -70,8 +70,9 @@ make local-ssh
 make local-ip      # the address itself, e.g. for `make repo-add`
 ```
 
-If SSH does not answer, `make local-console` works without any network. See
-`make help` for the rest.
+If SSH does not answer, `make local-console` shows the boot without any network
+— it is for reading, not logging in: `core` has no password. See `make help` for
+the rest.
 
 Then continue with **Post-install setup** in the [README](../README.md).
 

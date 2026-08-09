@@ -106,9 +106,9 @@ export ZRAM_CONFIG
 resolve_trusted_cidrs
 resolve_publish
 
-# An explicit whitelist, not a blanket envsubst: the console password_hash is
-# crypt text full of $-fields ($6$salt$...) that a blanket substitution would
-# silently eat, locking out the break-glass login.
+# An explicit whitelist, not a blanket envsubst: a blanket run would also eat
+# any literal $-text this config grows later (crypt hashes, shell fragments,
+# systemd specifiers) and do it silently.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
