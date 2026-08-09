@@ -30,17 +30,21 @@ if check systemd-analyze; then
   # storage.filesystems (with_mount_unit) and checked in the rendered Ignition
   # by test-render.sh instead.
   #
-  # Only unit-syntax errors count. Missing ExecStart binaries and missing
-  # referenced units are expected, since those live on the server.
   # Every hand-written unit in one pass: no two share a name, so they can all
   # be loaded together.
   mapfile -t units < <(find "$UNIT_DIR" -type f \
     \( -name '*.service' -o -name '*.mount' -o -name '*.conf' \))
+  # The exit code carries no signal: it is 1 even on a clean tree, because the
+  # ExecStart binaries live on the server and var-mnt-state.mount is generated
+  # by Butane. A real typo is only a WARNING, so the text is all there is.
+  # Filter out exactly that expected noise and fail on whatever is left — an
+  # allowlist of bad strings would silently pass everything the day systemd
+  # rewords a diagnostic.
   out="$(systemd-analyze verify "${units[@]}" 2>&1 || true)"
-  bad="$(printf '%s\n' "$out" | grep -E \
-    'Unknown key name|Unknown section|Unknown lvalue|Failed to parse|assignment outside of section' || true)"
+  bad="$(printf '%s\n' "$out" | grep -vE \
+    'is not executable:|Unit var-mnt-state\.mount not found|^$' || true)"
   if [[ -n "$bad" ]]; then
-    echo "  unit syntax errors:"
+    echo "  unexpected systemd-analyze output:"
     printf '%s\n' "$bad" | sed 's/^/    /'
     ERRORS=$((ERRORS + 1))
   else

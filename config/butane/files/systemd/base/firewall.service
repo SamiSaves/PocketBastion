@@ -1,5 +1,13 @@
 [Unit]
 Description=Render and apply nftables firewall rules
+# FCOS ships no ruleset of its own and sshd is socket-activated, so by
+# multi-user.target the box has already answered on an addressed interface.
+# firewalld's own ordering: get in ahead of NetworkManager, which waits on
+# network-pre.target. Default dependencies stay ON — they order this after the
+# filesystem it reads, and cost nothing since network-pre.target is ordered
+# against nothing in sysinit or basic, so there is no cycle to break.
+Wants=network-pre.target
+Before=network-pre.target
 
 [Service]
 Type=oneshot

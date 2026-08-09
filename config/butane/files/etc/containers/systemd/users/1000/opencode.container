@@ -1,8 +1,5 @@
 [Unit]
 Description=OpenCode headless server
-# User-scope Quadlet: there is no network-online.target in a user manager.
-After=podman-user-wait-network-online.service
-Wants=podman-user-wait-network-online.service
 
 [Container]
 Image=opencode.build
