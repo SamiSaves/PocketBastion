@@ -1,13 +1,61 @@
-# The official OpenCode image is Alpine (musl), and OpenCode's terminal loads a
-# glibc-only native PTY library, so the integrated terminal is broken there.
-# node:24-slim is Debian/glibc, and node/npm are useful to the agent anyway.
+# Orca's runtime server, plus the agent CLIs it drives.
+#
+# Base stays node:24-slim (Debian/glibc) for two reasons: Orca is Electron and
+# wants glibc, and pbweb.container reuses this same image purely as a node
+# runtime for the admin UI. Change the base and the admin UI goes with it.
 FROM docker.io/library/node:24-slim
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-      git openssh-client ca-certificates \
- && rm -rf /var/lib/apt/lists/* \
- && npm install -g opencode-ai \
- && npm cache clean --force
+# Orca ships only as an AppImage/deb/rpm — there is no npm package. Extract the
+# AppImage at build time rather than running it: FUSE is not available in a
+# rootless container, so `--appimage-extract` is the only way in.
+#
+# Pinned, not /releases/latest/: that redirect currently lands on a Windows QA
+# tag with no Linux asset, and a box that silently rebuilds onto a new Orca on
+# every reflash is not something to want anyway. Bump it deliberately.
+ARG ORCA_VERSION=1.4.178
 
-ENTRYPOINT ["opencode"]
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      git openssh-client ca-certificates curl \
+      xvfb \
+      libgtk-3-0 libnss3 libasound2 libcups2 libgbm1 libatk-bridge2.0-0 \
+      libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 \
+      libpango-1.0-0 libcairo2 libatspi2.0-0 libdrm2; \
+    case "$(uname -m)" in \
+      aarch64) appimage=orca-linux-arm64.AppImage ;; \
+      x86_64)  appimage=orca-linux.AppImage ;; \
+      *) echo "no Orca AppImage for $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/stablyai/orca/releases/download/v${ORCA_VERSION}/${appimage}" \
+      -o /tmp/orca.AppImage; \
+    chmod +x /tmp/orca.AppImage; \
+    cd /opt && /tmp/orca.AppImage --appimage-extract >/dev/null; \
+    mv squashfs-root orca; \
+    rm /tmp/orca.AppImage; \
+    npm install -g @anthropic-ai/claude-code @openai/codex; \
+    npm cache clean --force; \
+    rm -rf /var/lib/apt/lists/*
+
+# The CLI entry is a plain node script; ELECTRON_RUN_AS_NODE makes the Electron
+# binary run it as node. `orca serve` then re-spawns the same binary as a real
+# Electron app (it strips ELECTRON_RUN_AS_NODE itself), so this is the shim the
+# official Linux installer uses too.
+#
+# --pairing-address is injected here rather than in the Quadlet because the
+# box's LAN address is DHCP and unknown at render time; pairing-address.service
+# writes it at boot. Without it Orca advertises the container's internal IP and
+# no client can reach the box.
+RUN set -eux; \
+    printf '%s\n' \
+      '#!/bin/sh' \
+      'CLI=/opt/orca/resources/app.asar.unpacked/out/cli/index.js' \
+      'if [ "$1" = serve ] && [ -n "${PAIRING_ADDRESS:-}" ]; then' \
+      '  shift' \
+      '  set -- serve --pairing-address "$PAIRING_ADDRESS" "$@"' \
+      'fi' \
+      'exec env ELECTRON_RUN_AS_NODE=1 /opt/orca/orca-ide "$CLI" "$@"' \
+      > /usr/local/bin/orca; \
+    chmod +x /usr/local/bin/orca
+
+ENTRYPOINT ["orca"]

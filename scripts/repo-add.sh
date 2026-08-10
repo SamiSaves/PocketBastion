@@ -52,7 +52,7 @@ if [[ -f "$meta" ]]; then
   [[ "$verified" == "true" ]] && exit 3
 fi
 [[ -f "$SECRETS/$name" ]] || \
-  ssh-keygen -t ed25519 -N '' -C "opencode $host/$owner/$repo" -f "$SECRETS/$name" >/dev/null
+  ssh-keygen -t ed25519 -N '' -C "orca $host/$owner/$repo" -f "$SECRETS/$name" >/dev/null
 chmod 600 "$SECRETS/$name"; chmod 644 "$SECRETS/$name.pub"
 cat > "$meta" <<META
 url=$url

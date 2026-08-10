@@ -36,7 +36,7 @@ HOST=$(sed -n 's/^host=//p' <<<"$META")
 OWNER=$(sed -n 's/^owner=//p' <<<"$META")
 REPO=$(sed -n 's/^repo=//p' <<<"$META")
 
-echo "Revoke the deploy key on $HOST → $OWNER/$REPO (delete the opencode key)."
+echo "Revoke the deploy key on $HOST → $OWNER/$REPO (delete the orca key)."
 echo
 read -r -p "Press Enter once the deploy key is revoked... "
 
@@ -49,7 +49,7 @@ if git ls-remote "git@$name:$owner/$repo.git" >/dev/null 2>&1; then
   exit 5
 fi
 rm -f "$SECRETS/$name" "$SECRETS/$name.pub" "$SECRETS/$name.meta"
-rm -f "/mnt/state/opencode/.ssh/$name"
+rm -f "/mnt/state/orca/.ssh/$name"
 sudo /usr/local/sbin/git-setup.sh
 if [[ "$purge" == "true" ]]; then
   rm -rf "/mnt/state/repos/$repo"

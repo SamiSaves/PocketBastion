@@ -38,7 +38,7 @@ import Layout from '../layouts/Layout.astro';
       });
       if (res.ok) return location.assign('/');
       // 429 is the login rate limit (docs/admin-ui.md): the box is reachable
-      // from the OpenCode container, so brute force can come from inside.
+      // from the Orca container, so brute force can come from inside.
       err.textContent =
         res.status === 429 ? 'Too many attempts. Wait and try again.' : 'Wrong password.';
     } catch (e) {

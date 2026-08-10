@@ -1,9 +1,0 @@
-# Referenced by opencode.container as `Image=opencode.build`, so systemd builds
-# the image before the container starts.
-[Unit]
-Description=Build the OpenCode container image
-
-[Build]
-ImageTag=localhost/opencode:latest
-File=/etc/pocketbastion/Containerfile
-SetWorkingDirectory=/etc/pocketbastion

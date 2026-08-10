@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wipe-state.sh — permanently delete the mock VM's disk image.
 #
-# WARNING: This destroys all data in /mnt/state (repos, opencode sessions,
+# WARNING: This destroys all data in /mnt/state (repos, orca sessions,
 # caches, deploy keys). There is no recovery.
 #
 # On the Pi, root and state share one card; the mock is the same, so this

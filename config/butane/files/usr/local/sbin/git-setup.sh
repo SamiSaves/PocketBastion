@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SECRETS=/mnt/state/secrets/git
-DATA=/mnt/state/opencode
+DATA=/mnt/state/orca
 CORE_HOME=/var/home/core
 
 install -d -m 700 "$SECRETS"

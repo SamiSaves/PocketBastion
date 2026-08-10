@@ -15,7 +15,7 @@ FW_ENV=/etc/pocketbastion/firewall.env
 NFT_CONF=/etc/nftables/pocketbastion.nft
 
 TRUSTED_CIDRS=""
-OPENCODE_PORTS=""
+ORCA_PORTS=""
 ADMIN_PORT=""
 
 if [[ -r "$FW_ENV" ]]; then
@@ -26,7 +26,7 @@ if [[ -r "$FW_ENV" ]]; then
   source "$FW_ENV" || {
     echo "WARNING: $FW_ENV did not parse. Locking down." >&2
     TRUSTED_CIDRS=""
-    OPENCODE_PORTS=""
+    ORCA_PORTS=""
     ADMIN_PORT=""
   }
 else
@@ -52,10 +52,10 @@ BANNER="LOCKDOWN — no TRUSTED_CIDRS"
 if [[ -z "${TRUSTED_CIDRS// /}" ]]; then
   echo "ERROR: no TRUSTED_CIDRS in ${FW_ENV}. Locking down." >&2
 else
-  BANNER="SSH, OpenCode and the admin UI open to ${TRUSTED_CIDRS}"
+  BANNER="SSH, Orca and the admin UI open to ${TRUSTED_CIDRS}"
   # An empty ADMIN_PORT just drops out of the set: nft_set word-splits, so the
   # box still firewalls correctly on a config rendered before the admin UI.
-  TRUST_RULE="    ip saddr $(nft_set "$TRUSTED_CIDRS") tcp dport $(nft_set "22 ${ADMIN_PORT} ${OPENCODE_PORTS}") accept"
+  TRUST_RULE="    ip saddr $(nft_set "$TRUSTED_CIDRS") tcp dport $(nft_set "22 ${ADMIN_PORT} ${ORCA_PORTS}") accept"
 fi
 
 write_ruleset() {  # <trust-rule>

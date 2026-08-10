@@ -35,10 +35,10 @@ printf '%s' "$PASSWORD" | node -e '
 
 cat > "$PB_ROOT/app/etc/firewall.env" <<'EOF'
 TRUSTED_CIDRS="192.168.122.0/24"
-OPENCODE_PORTS="4096 5173-5180"
+ORCA_PORTS="6768 5173-5180"
 ADMIN_PORT="8080"
 EOF
-printf 'OPENCODE_SERVER_PASSWORD=fixture\n' > "$PB_ROOT/state/secrets/opencode.env"
+printf 'ANTHROPIC_API_KEY=fixture\n' > "$PB_ROOT/state/secrets/orca.env"
 printf 'name=github-com-me-repo\nverified=false\n' > "$PB_ROOT/state/secrets/git/a.meta"
 
 # ── run ──────────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ JAR="$PB_ROOT/jar"
 grep -q 'pb' "$JAR" || bad "no session cookie was set"
 
 STATUS="$(curl -s -b "$JAR" "http://127.0.0.1:$PORT/api/status")"
-for key in networks ports opencodePassword adminPassword repos memory containers disk; do
+for key in networks ports adminPassword repos memory containers disk; do
   node -e 'process.exit(JSON.parse(process.argv[1])[process.argv[2]]?.value ? 0 : 1)' \
     "$STATUS" "$key" || bad "status row '$key' is missing or empty (index.astro renders it)"
 done

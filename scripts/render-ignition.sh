@@ -13,7 +13,7 @@ BUTANE_DIR="${REPO_ROOT}/config/butane"
 BUTANE_IMAGE="quay.io/coreos/butane:release"
 OUT_DIR="${IGNITION_OUT_DIR:-${REPO_ROOT}/config/ignition}"
 
-OPENCODE_UI_PORT=4096
+ORCA_UI_PORT=6768
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -43,7 +43,7 @@ resolve_trusted_cidrs() {
   set -- ${TRUSTED_CIDRS:-}
 
   (($#)) || die "TRUSTED_CIDRS is not set in ${DEPLOY_ENV}.
-       It is the only thing restricting who can reach SSH and the OpenCode UI.
+       It is the only thing restricting who can reach SSH and the Orca UI.
        Example — your home LAN only:
          TRUSTED_CIDRS=\"192.168.1.0/24\""
 
@@ -51,33 +51,33 @@ resolve_trusted_cidrs() {
     # 0/0 is the shorthand form; nft accepts it just as happily as 0.0.0.0/0.
     [[ "$cidr" != 0.0.0.0/0 && "$cidr" != 0/0 ]] \
       || die "TRUSTED_CIDRS contains '${cidr}', which trusts every host that can
-       route to this box. This box has no VPN of its own and the UI is plain
-       HTTP; name the networks you actually trust."
+       route to this box. This box has no VPN of its own, so the network it
+       sits on is the whole boundary; name the networks you actually trust."
   done
 
   TRUSTED_CIDRS="$*"
   export TRUSTED_CIDRS
 }
 
-# The UI on 4096 is always published; OPENCODE_EXTRA_PORTS adds to it.
+# The UI on 6768 is always published; ORCA_EXTRA_PORTS adds to it.
 # The LAN address is DHCP-assigned and unknown at render time, so bind
 # everywhere and let nftables restrict the source.
 resolve_publish() {
   local port
   # shellcheck disable=SC2086  # deliberate split, also normalises whitespace
-  set -- "$OPENCODE_UI_PORT" ${OPENCODE_EXTRA_PORTS:-}
+  set -- "$ORCA_UI_PORT" ${ORCA_EXTRA_PORTS:-}
 
-  OPENCODE_PUBLISH=""
+  ORCA_PUBLISH=""
   for port in "$@"; do
-    OPENCODE_PUBLISH+=$'\n          PublishPort='"0.0.0.0:${port}:${port}"
+    ORCA_PUBLISH+=$'\n          PublishPort='"0.0.0.0:${port}:${port}"
   done
 
-  OPENCODE_PORTS="$*"
-  export OPENCODE_PUBLISH OPENCODE_PORTS
+  ORCA_PORTS="$*"
+  export ORCA_PUBLISH ORCA_PORTS
 }
 
 # ── Admin UI (docs/admin-ui.md) ───────────────────────────────────────────────
-# Understands the "5173-5180" range form OPENCODE_EXTRA_PORTS accepts, so a
+# Understands the "5173-5180" range form ORCA_EXTRA_PORTS accepts, so a
 # collision *inside* a range is caught too, not just an exact match.
 port_in_set() {  # <port> <port-or-range>...
   local p="$1" item lo hi
@@ -116,9 +116,9 @@ resolve_admin() {
   # Without this the box boots fine and the admin UI silently loses the port to
   # a dev server, which presents as "my dev server is the admin page".
   # shellcheck disable=SC2086  # deliberate split of the port list
-  if port_in_set "$ADMIN_PORT" 22 $OPENCODE_PORTS; then
-    die "ADMIN_PORT=${ADMIN_PORT} collides with SSH or a published OpenCode port
-       (22 ${OPENCODE_PORTS}). Pick another."
+  if port_in_set "$ADMIN_PORT" 22 $ORCA_PORTS; then
+    die "ADMIN_PORT=${ADMIN_PORT} collides with SSH or a published Orca port
+       (22 ${ORCA_PORTS}). Pick another."
   fi
 
   export ADMIN_PORT ADMIN_PASSWORD_HASH
@@ -127,21 +127,21 @@ resolve_admin() {
 # ── Memory guardrails (all optional; empty = off, for larger hosts) ───────────
 # Sizes are passed through as written: podman, systemd and zram-generator each
 # reject a malformed one with a better message than this script could give.
-OPENCODE_MEMORY_ARGS=""
+ORCA_MEMORY_ARGS=""
 # podman rejects --memory-swap without -m, so the swap cap is nested under the
 # max. Without this, setting only the swap would render no cap at all, silently.
-[[ -z "${OPENCODE_MEMORY_SWAP:-}" || -n "${OPENCODE_MEMORY_MAX:-}" ]] \
-  || die "OPENCODE_MEMORY_SWAP is set without OPENCODE_MEMORY_MAX in ${DEPLOY_ENV}.
+[[ -z "${ORCA_MEMORY_SWAP:-}" || -n "${ORCA_MEMORY_MAX:-}" ]] \
+  || die "ORCA_MEMORY_SWAP is set without ORCA_MEMORY_MAX in ${DEPLOY_ENV}.
        podman needs the memory cap to apply a swap cap, so the container would
        end up with neither. Set both, or leave both empty."
-if [[ -n "${OPENCODE_MEMORY_MAX:-}" ]]; then
-  _mem_args="--memory=${OPENCODE_MEMORY_MAX}"
-  if [[ -n "${OPENCODE_MEMORY_SWAP:-}" ]]; then
-    _mem_args+=" --memory-swap=${OPENCODE_MEMORY_SWAP}"
+if [[ -n "${ORCA_MEMORY_MAX:-}" ]]; then
+  _mem_args="--memory=${ORCA_MEMORY_MAX}"
+  if [[ -n "${ORCA_MEMORY_SWAP:-}" ]]; then
+    _mem_args+=" --memory-swap=${ORCA_MEMORY_SWAP}"
   fi
-  OPENCODE_MEMORY_ARGS=$'\n          PodmanArgs='"${_mem_args}"
+  ORCA_MEMORY_ARGS=$'\n          PodmanArgs='"${_mem_args}"
 fi
-export OPENCODE_MEMORY_ARGS
+export ORCA_MEMORY_ARGS
 
 ZRAM_CONFIG=""
 if [[ -n "${ZRAM_SIZE:-}" ]]; then
@@ -160,7 +160,7 @@ resolve_admin
 # systemd specifiers) and do it silently.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
 SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
-            ${OPENCODE_PUBLISH} ${OPENCODE_PORTS} ${OPENCODE_MEMORY_ARGS}
+            ${ORCA_PUBLISH} ${ORCA_PORTS} ${ORCA_MEMORY_ARGS}
             ${TRUSTED_CIDRS} ${ZRAM_CONFIG}
             ${ADMIN_PORT} ${ADMIN_PASSWORD_HASH}'
 

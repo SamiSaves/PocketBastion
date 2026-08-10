@@ -99,7 +99,7 @@ virt-install \
 cat <<EOF
 
 VM '${VM_NAME}' is booting. First boot takes 3-5 minutes: it creates the state
-filesystem, grows root, then builds the OpenCode container image.
+filesystem, grows root, then builds the Orca container image.
 
   make local-console   # watch it boot, no network needed
   make local-ip        # its address on the libvirt network

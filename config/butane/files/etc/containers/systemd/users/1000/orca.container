@@ -1,0 +1,36 @@
+[Unit]
+Description=Orca headless server
+
+[Container]
+Image=orca.build
+ContainerName=orca
+# PublishPort lines are rendered into the 10-render.conf dropin: the port list
+# comes from deploy.env and this file never sees envsubst.
+Volume=/mnt/state/orca:/data:Z
+Environment=XDG_DATA_HOME=/data
+Environment=XDG_CONFIG_HOME=/data/config
+Environment=HOME=/data
+Environment=POCKETBASTION=1
+# Rootless podman cannot use Chromium's setuid sandbox. Orca reads this itself.
+Environment=ORCA_APPIMAGE_NO_SANDBOX=1
+Volume=/mnt/state/repos:/repos:Z
+WorkingDir=/repos
+# Provider API keys, if any. Orca's own accounts come from `orca account add`.
+EnvironmentFile=/mnt/state/secrets/orca.env
+# PAIRING_ADDRESS — the box's current LAN address, written at boot.
+EnvironmentFile=/run/pocketbastion/pairing.env
+# The offer minted here is reusable and stable: an unclaimed pending device is
+# reused across restarts rather than rotated, so this prints the same code until
+# someone pairs with it. It only ever reaches the journal, which is root/core.
+#
+# Once every device you want is enrolled, append `--no-pairing` in a dropin and
+# the box stops minting offers entirely. Not the default: a box that has never
+# been paired would then be unusable until someone SSHed in to undo it.
+Exec=serve --port 6768
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

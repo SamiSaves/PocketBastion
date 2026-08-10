@@ -10,7 +10,7 @@
 # the attacker's whole capability is the case statement below. Adding a verb
 # here is a security review.
 #
-# ponytail: the socket's group is core, and the OpenCode container shares uid
+# ponytail: the socket's group is core, and the Orca container shares uid
 # 1000, so it can reach this too. Bounded by the allowlist — both verbs amount
 # to "restart something already running". Give pbweb its own uid (and a shared
 # group on /mnt/state) if a verb ever does more than that.
@@ -23,10 +23,10 @@ case "$verb" in
   # status page failing is the early warning that a restart would fail too.
   is-active)
     case "$arg" in
-      opencode)
+      orca)
         runuser -u core -- \
           env XDG_RUNTIME_DIR=/run/user/1000 \
-          systemctl --user is-active opencode.service || true
+          systemctl --user is-active orca.service || true
         ;;
       *)
         echo "ERR unknown unit"
@@ -40,12 +40,12 @@ case "$verb" in
       git-setup.service)
         systemctl restart git-setup.service
         ;;
-      opencode)
+      orca)
         # Not `systemctl --user --machine=core@.host`: that needs
         # systemd-container, which FCOS does not ship. runuser is util-linux.
         runuser -u core -- \
           env XDG_RUNTIME_DIR=/run/user/1000 \
-          systemctl --user restart opencode.service
+          systemctl --user restart orca.service
         ;;
       *)
         echo "ERR unknown unit"

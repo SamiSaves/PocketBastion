@@ -18,7 +18,7 @@ cat > "$OUT/base.env" <<EOF
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAAtest render-validation-placeholder"
 GIT_USER_NAME="render validation"
 GIT_USER_EMAIL=render@validation
-OPENCODE_EXTRA_PORTS="5173-5180"
+ORCA_EXTRA_PORTS="5173-5180"
 ADMIN_PORT=8080
 ADMIN_PASSWORD_HASH=scrypt:cmVuZGVyLXZhbGlkYXRpb24=:cmVuZGVyLXZhbGlkYXRpb24tcGxhY2Vob2xkZXI=
 EOF
@@ -60,9 +60,9 @@ render 'TRUSTED_CIDRS="0/0"' >/dev/null 2>&1 \
 # server, so it has to fail at render. The range form is the one that gets hit
 # by accident — base.env publishes 5173-5180.
 render 'TRUSTED_CIDRS="192.168.1.0/24"' ADMIN_PORT=5175 >/dev/null 2>&1 \
-  && bad "ADMIN_PORT inside a published OpenCode range rendered instead of being refused"
-render 'TRUSTED_CIDRS="192.168.1.0/24"' ADMIN_PORT=4096 >/dev/null 2>&1 \
-  && bad "ADMIN_PORT=4096 (the OpenCode UI) rendered instead of being refused"
+  && bad "ADMIN_PORT inside a published Orca range rendered instead of being refused"
+render 'TRUSTED_CIDRS="192.168.1.0/24"' ADMIN_PORT=6768 >/dev/null 2>&1 \
+  && bad "ADMIN_PORT=6768 (the Orca UI) rendered instead of being refused"
 render 'TRUSTED_CIDRS="192.168.1.0/24"' ADMIN_PORT=22 >/dev/null 2>&1 \
   && bad "ADMIN_PORT=22 rendered instead of being refused"
 render 'TRUSTED_CIDRS="192.168.1.0/24"' ADMIN_PASSWORD_HASH=REPLACE_ME >/dev/null 2>&1 \

@@ -1,0 +1,9 @@
+# Referenced by orca.container as `Image=orca.build`, so systemd builds
+# the image before the container starts.
+[Unit]
+Description=Build the Orca container image
+
+[Build]
+ImageTag=localhost/orca:latest
+File=/etc/pocketbastion/Containerfile
+SetWorkingDirectory=/etc/pocketbastion

@@ -1,11 +1,11 @@
 // pbweb — the admin UI server (docs/admin-ui.md).
 //
 // Serves the static pages Astro built on the laptop, plus a small JSON API.
-// Runs in a container from the OpenCode image, as uid 1000, holding no
+// Runs in a container from the Orca image, as uid 1000, holding no
 // privilege: everything it does is a mount or the pb-priv socket.
 //
 // Node builtins only. There is no package.json on the box and no npm install
-// at boot — the runtime is whatever the OpenCode image already has.
+// at boot — the runtime is whatever the Orca image already has.
 import { createServer } from 'node:http';
 import { readFile, writeFile, readdir, statfs } from 'node:fs/promises';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
@@ -22,7 +22,6 @@ const UI = `${ETC}/ui`;
 const SEED_HASH = `${ETC}/admin.hash`;
 const FIREWALL_ENV = `${ETC}/firewall.env`;
 const HASH_FILE = `${ROOT}/state/admin/admin.hash`;
-const OPENCODE_ENV = `${ROOT}/state/secrets/opencode.env`;
 const GIT_SECRETS = `${ROOT}/state/secrets/git`;
 const PRIV_SOCK = `${ROOT}/run/pb-priv.sock`;
 
@@ -120,7 +119,7 @@ function validSession(req) {
 }
 
 // ponytail: one global window, not per-IP — there is one account, and the
-// attacker worth rate-limiting (the OpenCode container) shares the box's
+// attacker worth rate-limiting (the Orca container) shares the box's
 // address anyway, so per-IP would buy nothing.
 let failures = [];
 function rateLimited() {
@@ -138,12 +137,7 @@ async function status() {
   const rows = {};
 
   rows.networks = { value: fw.TRUSTED_CIDRS || 'none — box is locked down', state: fw.TRUSTED_CIDRS ? 'ok' : 'bad' };
-  rows.ports = { value: ['22', fw.ADMIN_PORT, fw.OPENCODE_PORTS].filter(Boolean).join(' ') };
-
-  const oc = parseEnv(await readOr(OPENCODE_ENV));
-  rows.opencodePassword = oc.OPENCODE_SERVER_PASSWORD
-    ? { value: 'set', state: 'ok' }
-    : { value: 'not set — the UI is open to anyone who can reach it', state: 'bad' };
+  rows.ports = { value: ['22', fw.ADMIN_PORT, fw.ORCA_PORTS].filter(Boolean).join(' ') };
 
   rows.adminPassword = (await usingSeedPassword())
     ? { value: 'still the one from deploy.env', state: 'warn' }
@@ -167,10 +161,10 @@ async function status() {
     state: avail / total < 0.1 ? 'bad' : avail / total < 0.2 ? 'warn' : 'ok',
   };
 
-  const active = await priv('is-active opencode').catch((e) => `unreachable (${e.message})`);
+  const active = await priv('is-active orca').catch((e) => `unreachable (${e.message})`);
   rows.containers = active === 'active'
-    ? { value: 'OpenCode running', state: 'ok' }
-    : { value: `OpenCode ${active}`, state: 'bad' };
+    ? { value: 'Orca running', state: 'ok' }
+    : { value: `Orca ${active}`, state: 'bad' };
 
   const fs = await statfs(`${ROOT}/state`).catch(() => null);
   if (fs) {
