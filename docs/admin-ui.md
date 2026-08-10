@@ -237,6 +237,20 @@ separately; see "Deferred".
 **pbweb holds the git deploy keys.** No new exposure: `git-setup.sh` already
 copies them into the OpenCode container's `/data/.ssh`.
 
+**pbweb runs with SELinux type enforcement disabled.** systemd owns the pb-priv
+listening socket, so reaching it needs `container_t` → `init_t` `connectto`,
+which stock FCOS policy does not grant. The denial is `dontaudit`'d, so it
+surfaces as a bare `EACCES` with no AVC in the log; relabelling the socket does
+not help, because the block is on the connect rather than the file. Verified on
+the mock VM at the socket's natural `var_run_t`: default `EACCES`,
+`--security-opt label=disable` replies.
+
+A policy module granting that permission would be worse — `container_t` covers
+the OpenCode container, so it would give the agent a channel to every
+socket-activated unit on the box. Disabling it for this one container leaves
+OpenCode confined, and pbweb is still held by its uid, its four mounts and its
+memory cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note.
+
 ## Deferred
 
 - **TLS via Let's Encrypt.** DNS-01 needs no inbound port and no static IP — an

@@ -63,6 +63,14 @@ if check podman; then
 fi
 
 echo ""
+echo "=== admin UI server ==="
+if bash "$ROOT/scripts/test-pbweb.sh"; then
+  echo "    OK"
+else
+  echo "    FAIL"; ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
 if [[ "$ERRORS" -eq 0 ]]; then
   echo "All checks passed."
 else

@@ -164,11 +164,25 @@ SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
             ${TRUSTED_CIDRS} ${ZRAM_CONFIG}
             ${ADMIN_PORT} ${ADMIN_PASSWORD_HASH}'
 
+# Butane resolves `contents.local` against one --files-dir, and the built admin
+# UI is a gitignored artifact rather than part of the source tree. Stage a copy
+# of both instead of writing build output into config/butane/.
+UI_DIST="${REPO_ROOT}/ui/dist"
+[[ -f "${UI_DIST}/index.html" && -f "${UI_DIST}/login.html" ]] \
+  || die "the admin UI is not built (${UI_DIST}). Build it first:
+         make ui"
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+cp -a "${BUTANE_DIR}/." "$STAGE/"
+mkdir -p "${STAGE}/files/ui"
+cp "${UI_DIST}"/*.html "${STAGE}/files/ui/"
+
 DST="${OUT_DIR}/pocketbastion.ign"
 echo "Rendering -> $DST"
 mkdir -p "$OUT_DIR"
 envsubst "$SUBST_VARS" < "${BUTANE_DIR}/pocketbastion.bu" \
-  | podman run --rm -i -v "${BUTANE_DIR}":/w:ro "$BUTANE_IMAGE" \
+  | podman run --rm -i -v "${STAGE}":/w:ro "$BUTANE_IMAGE" \
       --pretty --strict --files-dir /w \
   > "$DST"
-echo "OK: $DST"
+echo "OK: $DST ($(wc -c < "$DST") bytes)"

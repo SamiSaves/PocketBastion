@@ -19,6 +19,22 @@ set -euo pipefail
 read -r verb arg || exit 1
 
 case "$verb" in
+  # Read-only, and it exercises the same runuser path `restart` needs — so the
+  # status page failing is the early warning that a restart would fail too.
+  is-active)
+    case "$arg" in
+      opencode)
+        runuser -u core -- \
+          env XDG_RUNTIME_DIR=/run/user/1000 \
+          systemctl --user is-active opencode.service || true
+        ;;
+      *)
+        echo "ERR unknown unit"
+        exit 1
+        ;;
+    esac
+    ;;
+
   restart)
     case "$arg" in
       git-setup.service)

@@ -1,0 +1,54 @@
+[Unit]
+Description=PocketBastion admin UI
+
+[Container]
+# The OpenCode image, reused: it is already built on the box, so the admin UI
+# costs no extra pull and no second Containerfile. Its ENTRYPOINT is opencode,
+# hence the override. PodmanArgs rather than the Entrypoint= key, which is
+# newer than some podman versions in the field.
+Image=opencode.build
+ContainerName=pbweb
+#
+# label=disable: systemd holds the pb-priv listening socket, so connecting to it
+# needs container_t -> init_t connectto, which no stock FCOS policy grants. The
+# permission is dontaudit'd, so it fails as a bare EACCES with no AVC — verified
+# on the mock VM: default EACCES, label=disable replies, in both cases with the
+# socket at its natural var_run_t. Relabelling the socket does NOT help; the
+# denial is on the connect, not the file.
+#
+# The tempting fix — a policy module granting container_t -> init_t connectto —
+# is strictly worse: container_t covers the OpenCode container too, so it would
+# hand the agent a channel to every socket-activated unit on the box. This
+# disables type enforcement for THIS container only; OpenCode stays confined.
+#
+# What still holds pbweb: uid 1000, a mount namespace exposing exactly the four
+# paths below, and the memory cap.
+#
+# ponytail: SELinux off for pbweb. The SELinux-native fix is to drop the socket
+# — status from a root-written file and restarts through a spool dir plus a
+# .path unit, both container_file_t via :z — at the cost of synchronous replies.
+# Do that if pbweb ever grows a verb whose blast radius is bigger than
+# "restart something already running".
+PodmanArgs=--entrypoint=node --memory=128m --security-opt label=disable
+Exec=/app/etc/pbweb.mjs
+
+# Read-only: the UI, the server, the rendered password seed, firewall.env.
+Volume=/etc/pocketbastion:/app/etc:ro
+# The password it actually checks, and the repo keys it manages. No :z — the
+# relabel is moot with label=disable, and these are directories git-setup.sh
+# and OpenCode also touch, so leave their labels alone.
+Volume=/mnt/state/admin:/state/admin
+Volume=/mnt/state/secrets:/state/secrets
+# The only channel to anything privileged. Root on the far side; the verb
+# allowlist is in /usr/local/sbin/pb-priv.sh.
+Volume=/run/pb-priv.sock:/run/pb-priv.sock
+
+# PublishPort and ADMIN_PORT arrive in the rendered dropin: this file never
+# passes through envsubst.
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
