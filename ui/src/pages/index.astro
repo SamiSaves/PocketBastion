@@ -1,0 +1,63 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// The shell only. Values arrive from GET /api/status keyed by these ids, and
+// the server decides each flag — the thresholds belong where the numbers are
+// read, not in a page that was built on a laptop weeks earlier.
+const ROWS = [
+  ['networks', 'Trusted networks'],
+  ['ports', 'Open ports'],
+  ['opencodePassword', 'OpenCode server password'],
+  ['adminPassword', 'Admin password'],
+  ['repos', 'Repos'],
+  ['memory', 'Memory / zram'],
+  ['containers', 'Containers'],
+  ['disk', 'Disk on /mnt/state'],
+] as const;
+---
+
+<Layout title="Status">
+  <h2>Status</h2>
+  <dl class="card">
+    {
+      ROWS.map(([key, label]) => (
+        <div class="row" data-key={key}>
+          <dt>{label}</dt>
+          <dd>
+            <span class="sr" /><span class="v">…</span>
+          </dd>
+        </div>
+      ))
+    }
+  </dl>
+  <p class="error" id="err"></p>
+</Layout>
+
+<script>
+  type Row = { value: string; state?: 'ok' | 'warn' | 'bad' };
+
+  const PREFIX = { ok: '', warn: 'warning: ', bad: 'problem: ' };
+
+  const err = document.getElementById('err')!;
+
+  try {
+    const res = await fetch('/api/status', { headers: { accept: 'application/json' } });
+    // The session cookie expires while the tab sits open on a phone; a 401 is
+    // the normal case, not an error worth showing.
+    if (res.status === 401) location.assign('/login.html');
+    else if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const rows: Record<string, Row> = await res.json();
+
+    for (const el of document.querySelectorAll<HTMLElement>('[data-key]')) {
+      const row = rows[el.dataset.key!];
+      if (!row) continue;
+      const state = row.state ?? 'ok';
+      el.dataset.state = state;
+      el.querySelector('.sr')!.textContent = PREFIX[state];
+      el.querySelector('.v')!.textContent = row.value;
+    }
+  } catch (e) {
+    err.textContent = `Could not load status (${e instanceof Error ? e.message : e}). Reload to retry.`;
+  }
+</script>

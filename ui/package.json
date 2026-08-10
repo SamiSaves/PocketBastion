@@ -1,0 +1,13 @@
+{
+  "name": "pocketbastion-admin-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "devDependencies": {
+    "astro": "^7.2.0"
+  }
+}

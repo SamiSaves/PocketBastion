@@ -1,0 +1,50 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Log in" nav={false}>
+  <h2>PocketBastion</h2>
+  <form class="card" id="login" style="padding:1rem">
+    <label for="password">Admin password</label>
+    <input
+      id="password"
+      name="password"
+      type="password"
+      autocomplete="current-password"
+      required
+      autofocus
+      style="margin:0.5rem 0 0.9rem"
+    />
+    <button type="submit" class="primary">Log in</button>
+    <p class="error" id="err"></p>
+  </form>
+</Layout>
+
+<script>
+  const form = document.getElementById('login') as HTMLFormElement;
+  const button = form.querySelector('button')!;
+  const err = document.getElementById('err')!;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    err.textContent = '';
+    button.disabled = true;
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: new FormData(form).get('password') }),
+      });
+      if (res.ok) return location.assign('/');
+      // 429 is the login rate limit (docs/admin-ui.md): the box is reachable
+      // from the OpenCode container, so brute force can come from inside.
+      err.textContent =
+        res.status === 429 ? 'Too many attempts. Wait and try again.' : 'Wrong password.';
+    } catch (e) {
+      err.textContent = `Could not reach the box (${e instanceof Error ? e.message : e}).`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>

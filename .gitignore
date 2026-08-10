@@ -18,6 +18,11 @@ id_ed25519*
 .env
 .env.*
 
+# Admin UI build artifacts (ui/dist is rendered into the Ignition config)
+ui/node_modules/
+ui/dist/
+ui/.astro/
+
 # Editor and OS noise
 .DS_Store
 .idea/

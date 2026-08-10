@@ -1,4 +1,4 @@
-.PHONY: help ignition validate admin-hash \
+.PHONY: help ignition validate admin-hash ui ui-dev \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
         rpi-flash \
         repo-add repo-list repo-remove
@@ -25,6 +25,17 @@ ignition: ## Render the Ignition config from Butane (injects SSH key)
 
 admin-hash: ## Print an ADMIN_PASSWORD_HASH line for deploy.env (prompts)
 	@bash scripts/admin-hash.sh
+
+# ── Admin UI ─────────────────────────────────────────────────────────────────
+# Astro, static output, built on the laptop: ui/dist is what gets inlined into
+# the Ignition config. Nothing here ever runs on the box.
+
+ui: ## Build the admin UI to ui/dist
+	@cd ui && npm install --silent --no-audit --no-fund && npm run build
+	@du -sb ui/dist | awk '{printf "  ui/dist: %d bytes (budget 30720)\n", $$1}'
+
+ui-dev: ## Serve the admin UI with live reload (no box, no API)
+	@cd ui && npm install --silent --no-audit --no-fund && npm run dev
 
 # ── Validation ──────────────────────────────────────────────────────────────
 

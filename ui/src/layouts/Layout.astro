@@ -1,0 +1,239 @@
+---
+interface Props {
+  title: string;
+  /** Login has no nav — there is nowhere to go until you are in. */
+  nav?: boolean;
+}
+
+const { title, nav = true } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{title} · PocketBastion</title>
+  </head>
+  <body>
+    {
+      nav && (
+        <header>
+          <h1>PocketBastion</h1>
+          <nav>
+            <a href="/" aria-current={Astro.url.pathname === '/' ? 'page' : undefined}>
+              Status
+            </a>
+            <form method="post" action="/api/logout">
+              <button type="submit">Log out</button>
+            </form>
+          </nav>
+        </header>
+      )
+    }
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #f6f7f9;
+    --card: #fff;
+    --line: #dfe3e8;
+    --text: #16181d;
+    --dim: #5c6470;
+    --accent: #2f6feb;
+    --ok: #1a7f4b;
+    --warn: #a9660a;
+    --bad: #c1332d;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1c1f25;
+      --line: #2c313a;
+      --text: #e8eaed;
+      --dim: #98a0ad;
+      --accent: #6a9bff;
+      --ok: #4cc38a;
+      --warn: #e0a341;
+      --bad: #f2635a;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0 1rem 3rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  header,
+  main {
+    max-width: 44rem;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 1.25rem 0;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+  }
+
+  h2 {
+    margin: 2rem 0 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+
+  nav {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.9rem;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  a[aria-current='page'] {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    overflow: hidden;
+  }
+
+  button {
+    font: inherit;
+    color: var(--accent);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  button[type='submit'].primary {
+    width: 100%;
+    padding: 0.7rem;
+    color: #fff;
+    background: var(--accent);
+    border-radius: 0.4rem;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  input {
+    font: inherit;
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+
+  /* Status rows: label left, value right, wrapping to two lines on a phone. */
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 1rem;
+    justify-content: space-between;
+    padding: 0.7rem 0.9rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .row:first-child {
+    border-top: 0;
+  }
+
+  .row dt {
+    color: var(--dim);
+    font-size: 0.9rem;
+  }
+
+  .row dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  /* The dot carries the flag; the text carries the meaning. Colour is never
+     the only signal — screen readers get the state from .sr text. */
+  .row dd::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.45rem;
+    border-radius: 50%;
+    background: var(--dim);
+    vertical-align: 0.08em;
+  }
+
+  [data-state='ok'] dd::before {
+    background: var(--ok);
+  }
+  [data-state='warn'] dd::before {
+    background: var(--warn);
+  }
+  [data-state='bad'] dd::before {
+    background: var(--bad);
+  }
+  [data-state='warn'] dd {
+    color: var(--warn);
+  }
+  [data-state='bad'] dd {
+    color: var(--bad);
+  }
+
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .error {
+    margin: 0.75rem 0 0;
+    color: var(--bad);
+    font-size: 0.9rem;
+  }
+
+  .error:empty {
+    display: none;
+  }
+</style>
