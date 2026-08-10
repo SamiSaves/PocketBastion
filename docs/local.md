@@ -12,7 +12,7 @@ What it does not cover, and never will:
 | Storage | A sparse file on your SSD, not a microSD. Nothing here will tell you about card wear or speed. |
 
 Everything above the bootloader — partitioning, the state filesystem, the
-firewall, the OpenCode container, git access — is the real thing.
+firewall, the Orca container, git access — is the real thing.
 
 ## Prerequisites
 
@@ -48,9 +48,9 @@ cp deploy.env deploy.vm.env        # TRUSTED_CIDRS="192.168.122.0/24"
 DEPLOY_ENV=deploy.vm.env make local-up
 ```
 
-First run allocates a sparse 64 GB image, flashes it and boots. Allow 3–5
-minutes for first boot: it creates the state filesystem, grows root, then builds
-the OpenCode container image.
+First run allocates a sparse 64 GB image, flashes it and boots. First boot
+creates the state filesystem, grows root, then builds the Orca container image —
+the last of those downloads an AppImage and two npm packages, so give it time.
 
 ```bash
 VM_DISK_GB=32 make local-up          # smaller image (first run only)

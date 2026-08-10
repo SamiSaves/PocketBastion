@@ -1,17 +1,11 @@
-# Orca's runtime server, plus the agent CLIs it drives.
-#
-# Base stays node:24-slim (Debian/glibc) for two reasons: Orca is Electron and
-# wants glibc, and pbweb.container reuses this same image purely as a node
-# runtime for the admin UI. Change the base and the admin UI goes with it.
+# Orca is Electron, so it needs glibc; pbweb.container borrows this same image
+# purely for its node. Changing the base takes the admin UI with it.
 FROM docker.io/library/node:24-slim
 
-# Orca ships only as an AppImage/deb/rpm — there is no npm package. Extract the
-# AppImage at build time rather than running it: FUSE is not available in a
-# rootless container, so `--appimage-extract` is the only way in.
-#
-# Pinned, not /releases/latest/: that redirect currently lands on a Windows QA
-# tag with no Linux asset, and a box that silently rebuilds onto a new Orca on
-# every reflash is not something to want anyway. Bump it deliberately.
+# Extracted, not run: a rootless container has no FUSE to mount an AppImage.
+# Pinned because /releases/latest/ has resolved to tags carrying no Linux asset,
+# and because a box that changes Orca version on every reflash is not one to
+# want. Bump it deliberately.
 ARG ORCA_VERSION=1.4.178
 
 RUN set -eux; \
@@ -37,15 +31,11 @@ RUN set -eux; \
     npm cache clean --force; \
     rm -rf /var/lib/apt/lists/*
 
-# The CLI entry is a plain node script; ELECTRON_RUN_AS_NODE makes the Electron
-# binary run it as node. `orca serve` then re-spawns the same binary as a real
-# Electron app (it strips ELECTRON_RUN_AS_NODE itself), so this is the shim the
-# official Linux installer uses too.
+# ELECTRON_RUN_AS_NODE runs the CLI entry as plain node. `serve` re-spawns the
+# binary as a real Electron app and strips the variable itself, so setting it
+# here does not follow the server into its own process.
 #
-# --pairing-address is injected here rather than in the Quadlet because the
-# box's LAN address is DHCP and unknown at render time; pairing-address.service
-# writes it at boot. Without it Orca advertises the container's internal IP and
-# no client can reach the box.
+# PAIRING_ADDRESS is a runtime value; see pairing-address.sh for why.
 RUN set -eux; \
     printf '%s\n' \
       '#!/bin/sh' \

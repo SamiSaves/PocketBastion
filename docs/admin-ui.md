@@ -3,8 +3,6 @@
 A web page for managing the box, replacing the `make` targets that shell in over
 SSH. Reachable from a phone on the trusted network.
 
-Status: **planned.** This document is the spec; the plumbing lands first.
-
 ## Why
 
 Every management action today is a bash heredoc inside a laptop-side script that
@@ -19,8 +17,8 @@ of what the box is doing, and each new capability means another `make` target.
 | build-time (`deploy.env`, reflash) | runtime (`/mnt/state`, UI) |
 |---|---|
 | `SSH_AUTHORIZED_KEY` | repos and their deploy keys |
-| `TRUSTED_CIDRS` | `opencode.env` |
-| `ADMIN_PORT`, `OPENCODE_EXTRA_PORTS` | admin password (after first change) |
+| `TRUSTED_CIDRS` | `orca.env` |
+| `ADMIN_PORT`, `ORCA_EXTRA_PORTS` | admin password (after first change) |
 | memory caps, `ZRAM_SIZE` | container state |
 | `ADMIN_PASSWORD_HASH` (initial only) | |
 
@@ -37,7 +35,7 @@ astro build ──► static HTML/CSS/JS
                  inlined in Ignition (≈30 KB budget)
                        │
                        ▼
-              pbweb container ─────────────► /mnt/state/{admin,secrets,repos,opencode}
+              pbweb container ─────────────► /mnt/state/{admin,secrets,repos,orca}
               (node:24-slim, uid 1000)          reads and writes directly
                        │
                        │ /run/pb-priv.sock  (root:pbweb 0660)
@@ -49,7 +47,7 @@ astro build ──► static HTML/CSS/JS
 **Astro is `output: 'static'`.** It runs on the laptop and emits files. No SSR,
 no Node adapter on the box — that would be a permanent ~70 MB process.
 
-**The runtime is the OpenCode image**, already built and on disk
+**The runtime is the Orca image**, already built and on disk
 (`node:24-slim`). A second Quadlet container from the same image costs no extra
 pull and no new toolchain. ≈50 MB RSS while running.
 
@@ -78,8 +76,8 @@ Everything it needs is either a mount or the socket:
 | repo deploy keys, `known_hosts` | mount `/mnt/state/secrets` |
 | clone targets | mount `/mnt/state/repos` |
 | admin password hash | mount `/mnt/state/admin` |
-| `opencode.env` | mount `/mnt/state/secrets` |
-| regenerate git config, restart OpenCode | the socket |
+| `orca.env` | mount `/mnt/state/secrets` |
+| regenerate git config, restart Orca | the socket |
 
 `git-setup.sh` does not need root for its work — everything it touches is
 core-owned, and its final `chown -R 1000:1000` is a no-op when already uid 1000.
@@ -92,10 +90,11 @@ systemd listens on the socket. A connection spawns a **fresh root process** that
 handles one verb and exits — nothing runs the rest of the time.
 
 ```
-restart <unit>      allowlist: git-setup.service, opencode
+is-active orca
+restart <unit>      allowlist: git-setup.service, orca
 ```
 
-One verb. The web process never builds a command string — there is no argument
+Two verbs. The web process never builds a command string — there is no argument
 anywhere that becomes a shell command. If pbweb is fully compromised, the
 attacker's entire capability is restarting those two units.
 
@@ -151,7 +150,6 @@ form; this is the part that makes invisible config visible.
 |---|---|---|
 | Trusted networks | `/etc/pocketbastion/firewall.env` | — |
 | Open ports | `firewall.env` | — |
-| OpenCode server password | `/mnt/state/secrets/opencode.env` | red if unset |
 | Admin password | `/mnt/state/admin/` | amber if still the rendered one |
 | Repos | `/mnt/state/secrets/git/*.meta` | amber on `verified=false` |
 | Memory / zram | `/proc/meminfo`, `/sys/block/zram0` | amber when tight |
@@ -174,10 +172,10 @@ Remove: drop the key and meta, `restart git-setup.service`, optionally purge the
 clone. Port the validation from `scripts/repo-add.sh` verbatim — the URL and
 host/owner/repo regexes are a trust boundary and already correct.
 
-### OpenCode
+### Orca
 
-Edit `/mnt/state/secrets/opencode.env` (API keys, server password), then
-`restart opencode`. Show container status and recent log lines.
+Edit `/mnt/state/secrets/orca.env` (provider API keys), then `restart orca`.
+Show container status and recent log lines.
 
 ### System
 
@@ -186,16 +184,16 @@ and Cockpit does it better if it is ever wanted.
 
 ## Ports
 
-`ADMIN_PORT` is separate from the OpenCode publish list. Both reach the firewall
-accept set; only OpenCode's reach the Quadlet's `PublishPort`.
+`ADMIN_PORT` is separate from the Orca publish list. Both reach the firewall
+accept set; only Orca's reach the Quadlet's `PublishPort`.
 
 ```
-firewall accept:  22, ADMIN_PORT, OPENCODE_PORTS
-quadlet publish:  OPENCODE_PORTS
+firewall accept:  22, ADMIN_PORT, ORCA_PORTS
+quadlet publish:  ORCA_PORTS
 ```
 
 `ADMIN_PORT` must be >1024 so pbweb needs no `CAP_NET_BIND_SERVICE`. The render
-rejects a collision with 22, 4096, or anything in `OPENCODE_EXTRA_PORTS` —
+rejects a collision with 22, 6768, or anything in `ORCA_EXTRA_PORTS` —
 easy to hit by accident with ranges like `5173-5180`, and it fails as "the admin
 UI is mysteriously the dev server" rather than as an error.
 
@@ -205,7 +203,7 @@ The perimeter is the network's job: the Pi sits on its own VLAN with nothing
 else on it, reached over the Unifi VPN. The box runs no VPN of its own.
 `TRUSTED_CIDRS` is the whole in-box access control.
 
-**The OpenCode container can reach the admin UI.** The input chain has
+**The Orca container can reach the admin UI.** The input chain has
 `iif "lo" accept`, and rootless pasta makes the container's outbound connections
 originate in the host netns — so a connection to the box's own address arrives
 over loopback and matches that rule, bypassing `TRUSTED_CIDRS`. Narrowing the
@@ -220,7 +218,7 @@ Verify rather than trust the above; pasta's behaviour shifts between podman
 versions:
 
 ```bash
-podman exec opencode curl -sv --max-time 2 http://<box-lan-ip>:<ADMIN_PORT>/
+podman exec orca curl -sv --max-time 2 http://<box-lan-ip>:<ADMIN_PORT>/
 ```
 
 **Box-to-box:** with two PocketBastions on one VLAN, either one's agent can
@@ -228,14 +226,13 @@ reach the other's admin UI and SSH. Scoping `TRUSTED_CIDRS` to the VPN pool
 rather than the VLAN closes that — a `deploy.env` change, no code.
 
 **No TLS.** Plaintext HTTP on an isolated VLAN, so the admin password crosses in
-the clear. The mitigating fact is that the OpenCode container cannot sniff it
+the clear. The mitigating fact is that the Orca container cannot sniff it
 (separate netns, no `CAP_NET_RAW`), which puts it outside the stated threat
-model. Doing this properly means covering OpenCode too — it carries API keys and
-source on the same wire — which means terminating TLS in front of both. Tracked
-separately; see "Deferred".
+model. Orca's own transport is end-to-end encrypted, so the admin UI is the only
+thing on the wire in the clear. Tracked separately; see "Deferred".
 
 **pbweb holds the git deploy keys.** No new exposure: `git-setup.sh` already
-copies them into the OpenCode container's `/data/.ssh`.
+copies them into the Orca container's `/data/.ssh`.
 
 **pbweb runs with SELinux type enforcement disabled.** systemd owns the pb-priv
 listening socket, so reaching it needs `container_t` → `init_t` `connectto`,
@@ -246,9 +243,9 @@ the mock VM at the socket's natural `var_run_t`: default `EACCES`,
 `--security-opt label=disable` replies.
 
 A policy module granting that permission would be worse — `container_t` covers
-the OpenCode container, so it would give the agent a channel to every
+the Orca container, so it would give the agent a channel to every
 socket-activated unit on the box. Disabling it for this one container leaves
-OpenCode confined, and pbweb is still held by its uid, its four mounts and its
+Orca confined, and pbweb is still held by its uid, its four mounts and its
 memory cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note.
 
 ## Deferred
@@ -271,4 +268,4 @@ memory cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note.
 0. **No UI.** Ports, hash generator, state dir, privsep socket and helper.
 1. **Read-only.** Login plus the status screen. Proves the whole stack with
    nothing destructive in it.
-2. **Write actions.** Repos, `opencode.env`, restarts.
+2. **Write actions.** Repos, `orca.env`, restarts.

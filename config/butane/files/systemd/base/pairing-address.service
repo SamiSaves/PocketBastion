@@ -1,9 +1,8 @@
 [Unit]
 Description=Record the box's LAN address for Orca pairing offers
-# This is a system unit and orca.container is a user unit, so there is no
-# ordering between them. If the container wins the race, podman fails on the
-# missing --env-file and Restart=always retries 5s later, by which point this
-# has run. Same contract as /mnt/state/secrets/orca.env.
+# No ordering against orca.container is possible — that is a user unit. If it
+# wins the race podman fails on the missing --env-file and its Restart=always
+# retries. Same contract as /mnt/state/secrets/orca.env.
 After=network-online.target
 Wants=network-online.target
 

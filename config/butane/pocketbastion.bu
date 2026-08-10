@@ -148,9 +148,9 @@ storage:
       contents:
         inline: |
           ${ZRAM_CONFIG}
-    # Quadlet .build unit + its Containerfile: builds the Orca image on the box
-    # (Orca ships as an AppImage, not a container image) together with the
-    # agent CLIs. orca.container references this via Image=orca.build.
+    # Quadlet .build unit + its Containerfile: Orca ships as an AppImage, not a
+    # container image, so the box builds one. orca.container names it as
+    # Image=orca.build.
     - path: /etc/containers/systemd/users/1000/orca.build
       mode: 0644
       contents:
@@ -163,9 +163,7 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/firewall-setup.sh
-    # Writes /run/pocketbastion/pairing.env, which orca.container reads as an
-    # EnvironmentFile. The box's LAN address is DHCP and the container cannot
-    # see it, so this is the only place the pairing endpoint can come from.
+    # Writes /run/pocketbastion/pairing.env, read by orca.container.
     - path: /usr/local/sbin/pairing-address.sh
       mode: 0750
       contents:

@@ -45,8 +45,8 @@ firewall falls back to a full lockdown if it is ever emptied by hand afterwards.
 `deploy.env.example` already ships these values, sized for a 4 GB board:
 
 ```bash
-OPENCODE_MEMORY_MAX=2g
-OPENCODE_MEMORY_SWAP=3g
+ORCA_MEMORY_MAX=2g
+ORCA_MEMORY_SWAP=3g
 ZRAM_SIZE=1024
 ```
 
@@ -80,7 +80,7 @@ it prints the layout and makes you type the device path back before it starts.
 ### First boot
 
 Allow 3–5 minutes: it partitions the card, creates the state filesystem, grows
-root, then builds the OpenCode container image.
+root, then builds the Orca container image.
 
 Find it on the network (hostname `pocketbastion-rpi`) and `ssh core@<ip>`.
 
