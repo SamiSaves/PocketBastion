@@ -13,6 +13,11 @@ Environment=HOME=/data
 Environment=POCKETBASTION=1
 # Rootless podman cannot use Chromium's setuid sandbox. Orca reads this itself.
 Environment=ORCA_APPIMAGE_NO_SANDBOX=1
+# Claude Code refuses --dangerously-skip-permissions when getuid() == 0 unless
+# this is set. Container-root here is host uid 1000 (core) under rootless
+# podman, not host root, so the guard is reading the wrong uid: the sandbox it
+# wants is the container, and the container is what it is running in.
+Environment=IS_SANDBOX=1
 Volume=/mnt/state/repos:/repos:Z
 WorkingDir=/repos
 # Provider API keys, if any. Orca's own accounts come from `orca account add`.
