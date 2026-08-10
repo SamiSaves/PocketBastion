@@ -190,6 +190,12 @@ storage:
           sshCommand = ssh -F /data/.ssh/config
 systemd:
   units:
+    # Not a unit of ours — a dropin so network-online.target is actually
+    # reached, which is what the user Quadlets' network wait polls for.
+    - name: multi-user.target
+      dropins:
+        - name: 10-network-online.conf
+          contents_local: files/systemd/base/multi-user.target.d/10-network-online.conf
     - name: state-dirs.service
       enabled: true
       contents_local: files/systemd/base/state-dirs.service

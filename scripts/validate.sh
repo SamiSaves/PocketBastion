@@ -32,8 +32,12 @@ if check systemd-analyze; then
   #
   # Every hand-written unit in one pass: no two share a name, so they can all
   # be loaded together.
+  # No '*.conf': every .conf under here is a dropin fragment, and
+  # systemd-analyze cannot verify one on its own — it rejects the filename
+  # outright, since a fragment is not a unit. Dropins are covered by the render
+  # (Butane --strict) and by the mock VM boot instead.
   mapfile -t units < <(find "$UNIT_DIR" -type f \
-    \( -name '*.service' -o -name '*.mount' -o -name '*.conf' -o -name '*.socket' \))
+    \( -name '*.service' -o -name '*.mount' -o -name '*.socket' \))
   # The exit code carries no signal: it is 1 even on a clean tree, because the
   # ExecStart binaries live on the server and var-mnt-state.mount is generated
   # by Butane. A real typo is only a WARNING, so the text is all there is.
