@@ -5,22 +5,22 @@ SSH. Reachable from a phone on the trusted network.
 
 ## Why
 
-Every management action today is a bash heredoc inside a laptop-side script that
-SSHes in (`repo-add.sh`, `repo-list.sh`, `repo-remove.sh`). There is no overview
-of what the box is doing, and each new capability means another `make` target.
+There is no overview of what the box is doing, and every management action
+otherwise means SSH. The goal is a box whose happy path — first boot to working
+agent — never needs a terminal on the laptop.
 
 ## The rule
 
 > **Anything in `deploy.env` is build-time — changed by reflash.
-> Anything on `/mnt/state` is runtime — changed by the UI.**
+> Anything on `/mnt/state` is runtime — changed on the box.**
 
-| build-time (`deploy.env`, reflash) | runtime (`/mnt/state`, UI) |
+| build-time (`deploy.env`, reflash) | runtime (`/mnt/state`) |
 |---|---|
-| `SSH_AUTHORIZED_KEY` | repos and their deploy keys |
-| `TRUSTED_CIDRS` | `orca.env` |
-| `ADMIN_PORT`, `ORCA_EXTRA_PORTS` | admin password (after first change) |
-| memory caps, `ZRAM_SIZE` | container state |
-| `ADMIN_PASSWORD_HASH` (initial only) | |
+| `SSH_AUTHORIZED_KEY` | admin password (after first change) |
+| `TRUSTED_CIDRS` | GitHub credential, git identity (Orca terminal) |
+| `ADMIN_PORT`, `ORCA_EXTRA_PORTS` | repos (agent-cloned) |
+| memory caps, `ZRAM_SIZE` | pairings, container state |
+| `ADMIN_PASSWORD_HASH` (initial only) | `orca.env` (optional provider keys, SSH) |
 
 No overlap, so there is never a question of which one wins. Flashing and
 rendering stay on the laptop — that is the line, not a gap.
@@ -35,21 +35,22 @@ astro build ──► static HTML/CSS/JS
                  inlined in Ignition (≈30 KB budget)
                        │
                        ▼
-              pbweb container ─────────────► /mnt/state/{admin,secrets,repos,orca}
-              (node:24-slim, uid 1000)          reads and writes directly
-                       │
+              pbweb container ── ro ──► /mnt/state/{admin,repos},
+              (node:24-slim, uid 1000)  /run/pocketbastion/agent-status.json,
+                       │                orca-devices.json
                        │ /run/pb-priv.sock  (root:pbweb 0660)
                        ▼
-              pb-priv@.service ── restart <allowlisted unit>
-              (root, one connection, exits)
+              pb-priv@.service ── one verb per connection, exits
+                       ▲
+              pb-status.timer ── root, writes agent-status.json each minute
 ```
 
 **Astro is `output: 'static'`.** It runs on the laptop and emits files. No SSR,
 no Node adapter on the box — that would be a permanent ~70 MB process.
 
-**The runtime is the Orca image**, already built and on disk
-(`node:24-slim`). A second Quadlet container from the same image costs no extra
-pull and no new toolchain. ≈50 MB RSS while running.
+**The runtime is the Orca image**, already built and on disk (`node:24-slim`).
+A second Quadlet container from the same image costs no extra pull and no new
+toolchain. ≈50 MB RSS while running.
 
 **Updating the UI requires a reflash.** That is accepted: the assets are inlined
 in the Ignition config, which is also why the built site has a size budget.
@@ -57,32 +58,31 @@ in the Ignition config, which is also why the built site has a size budget.
 ### The ~30 KB budget
 
 Ignition is delivered on the Pi's boot partition, so there is no hard cap — but
-`config/ignition/pocketbastion.ign` currently renders at 12.5 KB and keeping it
-small keeps it reviewable. Treat 30 KB of built output as the budget.
+keeping it small keeps it reviewable. Treat 30 KB of built output as the budget.
 
-In practice that means **no client framework**. For a dozen forms, plain HTML
-with a few `fetch` calls is the right answer anyway. Wanting React and a chart
-library is the signal to reconsider the approach, not to raise the budget.
+In practice that means **no client framework**. For a handful of pages, plain
+HTML with a few `fetch` calls is the right answer anyway. (This is also why the
+pairing screen shows a tappable link, not a QR: a QR encoder is ~10 KB of the
+budget for a scan that pairing-on-the-phone never needs.)
 
 ## Privilege model
 
 pbweb runs as uid 1000 in a container. It holds no privilege and cannot escalate
 — no sudo, no setuid path, `NoNewPrivileges=yes`.
 
-Everything it needs is either a mount or the socket:
+Everything it needs is a read-only mount, one writable mount, or the socket:
 
 | needs | how |
 |---|---|
-| repo deploy keys, `known_hosts` | mount `/mnt/state/secrets` |
-| clone targets | mount `/mnt/state/repos` |
-| admin password hash | mount `/mnt/state/admin` |
-| `orca.env` | mount `/mnt/state/secrets` |
-| regenerate git config, restart Orca | the socket |
+| admin password hash | mount `/mnt/state/admin` (rw — password change) |
+| what checkouts exist | mount `/mnt/state/repos` (ro) |
+| auth + pairing status | mount `/run/pocketbastion` (ro) — the status file |
+| paired devices | mount Orca's `orca-devices.json` (ro, single file) |
+| restarts, logs, reset | the socket |
 
-`git-setup.sh` does not need root for its work — everything it touches is
-core-owned, and its final `chown -R 1000:1000` is a no-op when already uid 1000.
-It runs as root only because it also runs at boot, where no core session exists.
-So pbweb does not call it directly; it asks for a unit restart.
+pbweb no longer mounts `/mnt/state/secrets`: with deploy keys gone it has no
+business there, and the GitHub credential lives in Orca's `/data`, which pbweb
+never sees.
 
 ### The root API
 
@@ -91,12 +91,15 @@ handles one verb and exits — nothing runs the rest of the time.
 
 ```
 is-active orca
-restart <unit>      allowlist: git-setup.service, orca
+restart orca
+logs <unit>          allowlist: orca; fixed line count, no other arguments
+reset-pairing        delete orca-devices.json, restart orca
 ```
 
-Two verbs. The web process never builds a command string — there is no argument
-anywhere that becomes a shell command. If pbweb is fully compromised, the
-attacker's entire capability is restarting those two units.
+Four verbs. The web process never builds a command string — there is no
+argument anywhere that becomes a shell command. If pbweb is fully compromised,
+the attacker's entire capability is: restart Orca, read its recent logs, force
+every device to re-pair.
 
 Two rules keep it that way:
 
@@ -108,6 +111,24 @@ Two rules keep it that way:
 Not a sudoers allowlist, for two reasons: sudo is setuid, so pbweb would have to
 retain the ability to gain privilege at all; and sudo does not cross the
 container boundary, while a bind-mounted socket does.
+
+### The status file
+
+Status that would otherwise need a verb comes from a **root-written file**
+instead: `pb-status.timer` runs a script every minute (and at boot) that writes
+`/run/pocketbastion/agent-status.json`, mode 0644, containing only derived
+facts — never a token:
+
+- GitHub: the username line from gh's `hosts.yml`, or absent
+- Claude / Codex: credential file exists or not
+- git identity: `user.email` set in `/data/.gitconfig` or not
+- the latest `orca_server_ready` line from Orca's journal — pairing offer,
+  web client URL, or the failure reason
+
+Up to a minute stale, which is fine for auth rows; after "restart Orca" the
+pairing screen says so and refreshes. This is the file-over-socket pattern the
+Quadlet's `ponytail:` note names — it keeps the root API small and pbweb out of
+Orca's state.
 
 ## Login
 
@@ -128,9 +149,10 @@ present?                              → leave it alone
 
 First flash seeds it; later reflashes do not clobber a password you changed.
 
-**Changing it** writes the state copy. Prompting for this on first login is
-worth adding once the flow exists — the rendered hash is shared with whoever has
-`deploy.env`.
+**Changing it** (a screen): requires the current password, writes the state
+copy, and invalidates every session including the caller's — if the change was
+made out of suspicion, that is the behaviour you want, and logging back in once
+is cheap.
 
 **Recovery**: delete `/mnt/state/admin/admin.hash` over SSH and restart pbweb.
 It reseeds from the rendered value. That is the reset path, and using it
@@ -151,36 +173,75 @@ form; this is the part that makes invisible config visible.
 | Trusted networks | `/etc/pocketbastion/firewall.env` | — |
 | Open ports | `firewall.env` | — |
 | Admin password | `/mnt/state/admin/` | amber if still the rendered one |
-| Repos | `/mnt/state/secrets/git/*.meta` | amber on `verified=false` |
+| GitHub | status file | amber if not authed → points at the setup guide |
+| Claude / Codex | status file | amber if neither authed |
+| git identity | status file | amber if unset |
+| Repos | `/mnt/state/repos` (ro) | name + size, informational |
 | Memory / zram | `/proc/meminfo`, `/sys/block/zram0` | amber when tight |
-| Containers | socket → status | red if not running |
+| Load | `/proc/loadavg` | amber when high |
+| Temperature | `/sys/class/thermal` | amber when hot; row absent on the VM |
+| Containers | socket → `is-active` | red if not running |
 | Disk on `/mnt/state` | `statvfs` | amber when low |
 
-### Repos
+### Pairing
 
-List from `/mnt/state/secrets/git/*.meta`. Add is two steps, because a deploy
-key has to be registered off-box in between:
+From the status file's ready-line. Shows, in this order:
 
-1. **Add** — validate the SSH URL, `ssh-keygen` into `/mnt/state/secrets/git`,
-   write `<name>.meta` with `verified=false`, show the public key.
-2. *(you add it as a deploy key on the host)*
-3. **Verify** — pin the host key (`github.com` is pinned outright; anything else
-   shows a fingerprint to confirm), `restart git-setup.service`, `git ls-remote`,
-   clone into `/mnt/state/repos`, set `verified=true`.
+1. **Web client URL** — tap to open Orca's browser client. Pairs at *runtime*
+   scope: full capability, including creating and cloning projects. **On a
+   fresh box, do this first** — the mobile app cannot create projects, so at
+   least one must exist before it has anything to attach to.
+2. **Pairing link** (`orca://pair?...`) — tap on the phone to pair the mobile
+   app (*mobile* scope: restricted method allowlist).
+3. **Paired devices** — from `orca-devices.json` (ro): name, created, last
+   seen. The list is what makes an odd or forgotten device visible.
+4. **Reset pairings** — the `reset-pairing` verb. There is no per-device revoke
+   on a headless server (desktop-app only, upstream), so revocation is
+   all-or-nothing: every device re-pairs against a fresh offer. That is the
+   supported path and the right shape for "a phone was lost".
 
-Remove: drop the key and meta, `restart git-setup.service`, optionally purge the
-clone. Port the validation from `scripts/repo-add.sh` verbatim — the URL and
-host/owner/repo regexes are a trust boundary and already correct.
+A new offer is minted only at startup, so "pair another device later" =
+restart Orca (button on this screen), wait for the refresh.
 
-### Orca
+Once every device is enrolled, `--no-pairing` in a dropin stops the box minting
+offers; documented, not default.
 
-Edit `/mnt/state/secrets/orca.env` (provider API keys), then `restart orca`.
-Show container status and recent log lines.
+### Logs
 
-### System
+Recent lines from Orca's journal via the `logs` verb. Fixed line count. This is
+what turns "Orca: red" from a dead end into a diagnosis without SSH.
 
-Container status, reboot, log tail. Deliberately thin — this is not a terminal,
-and Cockpit does it better if it is ever wanted.
+### Password
+
+The change form described under Login.
+
+## One-time setup (Orca terminal)
+
+Auth material never passes through the admin UI — it is entered once, in Orca's
+own terminal (web client → terminal), and lands in `/data`, which survives
+reflashes:
+
+```bash
+gh auth login          # paste the fine-grained PAT (see docs/adr/0001)
+gh auth setup-git      # git clone/push over HTTPS uses gh as credential helper
+git config --global user.name  "You"
+git config --global user.email "you@example.com"
+claude                 # and/or codex — interactive agent auth
+```
+
+The status screen's amber rows point here until each is done. Adding a repo
+later is not a box operation at all: grant the PAT access on github.com, then
+tell the agent to clone it.
+
+## Bootstrap
+
+The whole first-run story, no SSH:
+
+1. Flash, open the admin UI, log in with the `deploy.env` password.
+2. Pairing screen → **web client URL** → create or clone the first project,
+   run the one-time terminal setup above.
+3. Pairing screen → **pairing link** on the phone → mobile app attached.
+4. Change the admin password.
 
 ## Ports
 
@@ -214,8 +275,15 @@ That is consistent with the model — each service authenticates — but it mean
 admin UI.** Hence the rate limit. If it ever needs closing, `meta skuid 1000` in
 the input chain does it.
 
-Verify rather than trust the above; pasta's behaviour shifts between podman
-versions:
+**The Orca container can reach the socket too** (same uid as pbweb). Bounded by
+the allowlist: the worst an agent can do through it is restart Orca, read its
+own logs, or force every device to re-pair. Re-pairing is denial of
+convenience, not exposure — a fresh offer only ever appears in the journal and
+the admin UI, both out of the agent's reach. Give pbweb its own uid before any
+verb whose blast radius is bigger than that.
+
+Verify rather than trust the loopback claim; pasta's behaviour shifts between
+podman versions:
 
 ```bash
 podman exec orca curl -sv --max-time 2 http://<box-lan-ip>:<ADMIN_PORT>/
@@ -231,9 +299,6 @@ the clear. The mitigating fact is that the Orca container cannot sniff it
 model. Orca's own transport is end-to-end encrypted, so the admin UI is the only
 thing on the wire in the clear. Tracked separately; see "Deferred".
 
-**pbweb holds the git deploy keys.** No new exposure: `git-setup.sh` already
-copies them into the Orca container's `/data/.ssh`.
-
 **pbweb runs with SELinux type enforcement disabled.** systemd owns the pb-priv
 listening socket, so reaching it needs `container_t` → `init_t` `connectto`,
 which stock FCOS policy does not grant. The denial is `dontaudit`'d, so it
@@ -245,8 +310,17 @@ the mock VM at the socket's natural `var_run_t`: default `EACCES`,
 A policy module granting that permission would be worse — `container_t` covers
 the Orca container, so it would give the agent a channel to every
 socket-activated unit on the box. Disabling it for this one container leaves
-Orca confined, and pbweb is still held by its uid, its four mounts and its
-memory cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note.
+Orca confined, and pbweb is still held by its uid, its mounts and its memory
+cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note — and
+the status file is that pattern, already adopted for reads.
+
+## Deleted with the deploy-key machinery
+
+Superseded by the fine-grained PAT (see `docs/adr/0001`): `repo-add.sh`,
+`repo-list.sh`, `repo-remove.sh` and their `make` targets, the `.meta` files
+and known_hosts pinning, `git-setup.{sh,service}` (its allowlist entry with
+it), the rendered gitconfig and `GIT_USER_NAME`/`GIT_USER_EMAIL` in
+`deploy.env`, and the planned Repos and `orca.env` screens.
 
 ## Deferred
 
@@ -256,16 +330,27 @@ memory cap. The SELinux-native alternative is in the Quadlet's `ponytail:` note.
   Costs a domain, a zone-scoped API token on `/mnt/state`, `acme.sh` (pure
   shell, needs only curl and openssl — certbot is Python and Python is not on
   FCOS), and a timer. Own project.
-- **First-login forced password change.**
+- **First-login forced password change.** The amber status row nags meanwhile.
 - **Firewall editing from the UI.** `TRUSTED_CIDRS` is build-time by the rule
   above, and it is the one setting that can lock you out.
 - **Cockpit** as an optional layer for terminal, logs and metrics.
-- **Git credential broker.** The larger existing surface — a haywire agent can
-  push to your repos today, and reflashing does not undo a force-push.
+- **Reboot from the UI.** The socket is agent-reachable, so a reboot verb is an
+  unauthenticated reboot for a prompt-injected agent. Arrives together with
+  pbweb-own-uid work, or not at all — SSH covers it.
+- **Per-device revoke.** Upstream limitation; reset-all is the supported path.
+- **Machine account.** The escalation if PAT scoping ever chafes: a separate
+  GitHub account invited per-repo, agent activity under its own identity.
 
 ## Build order
 
-0. **No UI.** Ports, hash generator, state dir, privsep socket and helper.
-1. **Read-only.** Login plus the status screen. Proves the whole stack with
-   nothing destructive in it.
-2. **Write actions.** Repos, `orca.env`, restarts.
+Phases 0–1 (privsep socket, hash generator, login, status screen) are built.
+
+2. **Password change.** Smallest write action; closes the amber row.
+3. **Status file.** `pb-status.{timer,service}` + script; `--json
+   --mobile-pairing` on the Orca Exec; new status rows (auth, load, temp,
+   repos). Verify the `orca-devices.json` path on the mock VM while here.
+4. **Pairing screen.** Links, device list, restart + reset-pairing buttons —
+   the two new verbs land with it.
+5. **Logs screen.**
+6. **Deletions.** Everything in "Deleted" above, plus dropping pbweb's
+   `/mnt/state/secrets` mount.
