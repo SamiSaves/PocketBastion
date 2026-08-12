@@ -166,9 +166,11 @@ SUBST_VARS='${SSH_AUTHORIZED_KEY}
 # UI is a gitignored artifact rather than part of the source tree. Stage a copy
 # of both instead of writing build output into config/butane/.
 UI_DIST="${REPO_ROOT}/ui/dist"
-[[ -f "${UI_DIST}/index.html" && -f "${UI_DIST}/login.html" ]] \
-  || die "the admin UI is not built (${UI_DIST}). Build it first:
+for page in index login pairing logs password; do
+  [[ -f "${UI_DIST}/${page}.html" ]] \
+    || die "the admin UI is not built (${UI_DIST}/${page}.html). Build it first:
          make ui"
+done
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT

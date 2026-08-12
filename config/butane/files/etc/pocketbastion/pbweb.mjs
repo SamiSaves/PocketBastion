@@ -63,6 +63,11 @@ function priv(line) {
 
 // ── password ─────────────────────────────────────────────────────────────────
 
+function makeHash(password) {
+  const salt = randomBytes(16);
+  return `scrypt:${salt.toString('base64')}:${scryptSync(password, salt, 32).toString('base64')}`;
+}
+
 /** scrypt:<salt-b64>:<hash-b64>, as produced by scripts/admin-hash.sh. */
 function verifyPassword(password, stored) {
   const [scheme, saltB64, hashB64] = stored.trim().split(':');
@@ -225,7 +230,7 @@ async function status() {
 
 // ── server ───────────────────────────────────────────────────────────────────
 
-const adminHash = await loadHash();
+let adminHash = await loadHash();
 
 function send(res, code, body, headers = {}) {
   res.writeHead(code, { 'cache-control': 'no-store', ...headers });
@@ -281,8 +286,41 @@ const server = createServer(async (req, res) => {
       return json(res, 200, await status());
     }
 
-    if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
-      return send(res, 200, await read(`${UI}/index.html`), { 'content-type': 'text/html; charset=utf-8' });
+    if (req.method === 'GET' && path === '/api/pairing') {
+      const ag = await agentStatus();
+      return json(res, 200, { ready: ag?.ready ?? null, devices: ag?.devices ?? null });
+    }
+
+    if (req.method === 'GET' && path === '/api/logs') {
+      return send(res, 200, await priv('logs orca'), { 'content-type': 'text/plain; charset=utf-8' });
+    }
+
+    if (req.method === 'POST' && (path === '/api/restart' || path === '/api/reset-pairing')) {
+      const out = await priv(path === '/api/restart' ? 'restart orca' : 'reset-pairing');
+      return out === 'OK' ? json(res, 200, { ok: true }) : json(res, 502, { error: out });
+    }
+
+    if (req.method === 'POST' && path === '/api/password') {
+      const { current, next } = await body(req);
+      if (typeof current !== 'string' || !verifyPassword(current, adminHash)) {
+        return json(res, 403, { error: 'wrong current password' });
+      }
+      if (typeof next !== 'string' || next.length < 8) {
+        return json(res, 400, { error: 'new password must be at least 8 characters' });
+      }
+      adminHash = makeHash(next);
+      await writeFile(HASH_FILE, `${adminHash}\n`, { mode: 0o600 });
+      // Every session, the caller's included: if the change was made out of
+      // suspicion, that is the behaviour you want (docs/admin-ui.md).
+      sessions.clear();
+      return json(res, 200, { ok: true });
+    }
+
+    // The static pages. The pattern admits no dot and no slash, so there is
+    // nothing to traverse; an unknown name falls through to the 404.
+    if (req.method === 'GET' && (path === '/' || /^\/[a-z-]+\.html$/.test(path))) {
+      const html = await readOr(`${UI}${path === '/' ? '/index.html' : path}`);
+      if (html) return send(res, 200, html, { 'content-type': 'text/html; charset=utf-8' });
     }
 
     return send(res, 404, 'not found', { 'content-type': 'text/plain' });

@@ -198,8 +198,8 @@ From the status file's ready-line. Shows, in this order:
    least one must exist before it has anything to attach to.
 2. **Pairing link** (`orca://pair?...`) — tap on the phone to pair the mobile
    app (*mobile* scope: restricted method allowlist).
-3. **Paired devices** — from `orca-devices.json` (ro): name, created, last
-   seen. The list is what makes an odd or forgotten device visible.
+3. **Paired devices** — from the status file: name, created, last seen. The
+   list is what makes an odd or forgotten device visible.
 4. **Reset pairings** — the `reset-pairing` verb. There is no per-device revoke
    on a headless server (desktop-app only, upstream), so revocation is
    all-or-nothing: every device re-pairs against a fresh offer. That is the
@@ -348,14 +348,12 @@ it), the rendered gitconfig and `GIT_USER_NAME`/`GIT_USER_EMAIL` in
 
 ## Build order
 
-Phases 0–1 (privsep socket, hash generator, login, status screen) are built.
+All phases are built: privsep socket, login, status screen, password change,
+the status file (`pb-status.{timer,service,sh}`), the pairing and logs screens
+with the `logs` and `reset-pairing` verbs, and the deletions above.
 
-2. **Password change.** Smallest write action; closes the amber row.
-3. **Status file.** `pb-status.{timer,service}` + script; `--json
-   --mobile-pairing` on the Orca Exec; new status rows (auth, load, temp,
-   repos). Verify the `orca-devices.json` path on the mock VM while here.
-4. **Pairing screen.** Links, device list, restart + reset-pairing buttons —
-   the two new verbs land with it.
-5. **Logs screen.**
-6. **Deletions.** Everything in "Deleted" above, plus dropping pbweb's
-   `/mnt/state/secrets` mount.
+Still to verify on the mock VM, marked `ponytail:` in `pb-status.sh`: the
+`orca-devices.json` path (assumed `/mnt/state/orca/orca-devices.json`) and the
+field names of the `--json` ready-line — the pairing page picks links out of it
+by shape (`orca://` vs `http`), so it tolerates either, but the device-list
+keys are a guess.

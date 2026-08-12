@@ -2,10 +2,12 @@
 # test-pbweb.sh — exercise the admin UI server against a fixture tree, on the
 # laptop, with no VM and no box.
 #
-# Covers the two things that are logic rather than plumbing: the login gate
-# (wrong password, rate limit, session cookie) and that /api/status answers with
-# the keys index.astro asks for. Everything it cannot fake — the pb-priv socket,
-# SELinux labels, the Quadlet — is what the VM run is for.
+# Covers what is logic rather than plumbing: the login gate (wrong password,
+# rate limit, session cookie), that /api/status answers with the keys
+# index.astro asks for, the password change (sessions invalidated, new password
+# live), and that the pairing API relays the status file. Everything it cannot
+# fake — the pb-priv socket, the status timer, SELinux labels, the Quadlet — is
+# what the VM run is for.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -111,7 +113,36 @@ node -e 'const s=JSON.parse(process.argv[1]);
   if (!s.repos.value.includes("demo")) { console.error("repos ignores the status file"); process.exit(1) }' \
   "$STATUS" || bad "status flags are not derived from the fixture state"
 
-[[ "$(code -b "$JAR" "http://127.0.0.1:$PORT/")" == 200 ]] || bad "a logged-in / did not serve the page"
+# The pairing API relays the ready-line and device list from the status file.
+PAIRING="$(curl -s -b "$JAR" "http://127.0.0.1:$PORT/api/pairing")"
+node -e 'const p=JSON.parse(process.argv[1]);
+  if (!p.ready?.pairing?.startsWith("orca://")) process.exit(1);
+  if (p.devices?.[0]?.name !== "fixture phone") process.exit(1);' \
+  "$PAIRING" || bad "/api/pairing does not relay the status file"
+
+for page in "" pairing.html logs.html password.html; do
+  [[ "$(code -b "$JAR" "http://127.0.0.1:$PORT/$page")" == 200 ]] \
+    || bad "a logged-in GET /$page did not serve the page"
+done
+
+# Password change: wrong current refused, weak refused, then a real change —
+# which must invalidate every session (the caller's too) and make the new
+# password the one that logs in.
+pwchange() { curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST "http://127.0.0.1:$PORT/api/password" \
+               -H 'content-type: application/json' --data "$1"; }
+[[ "$(pwchange '{"current":"wrong","next":"longenough"}')" == 403 ]] \
+  || bad "a password change with the wrong current password was accepted"
+[[ "$(pwchange "{\"current\":\"$PASSWORD\",\"next\":\"short\"}")" == 400 ]] \
+  || bad "a 5-character password was accepted"
+NEW_PASSWORD='an entirely new passphrase'
+[[ "$(pwchange "{\"current\":\"$PASSWORD\",\"next\":\"$NEW_PASSWORD\"}")" == 200 ]] \
+  || bad "a valid password change was refused"
+[[ "$(code -b "$JAR" "http://127.0.0.1:$PORT/api/status")" == 401 ]] \
+  || bad "the caller's session survived the password change"
+[[ "$(login "$PASSWORD")" == 401 ]] || bad "the old password still logs in"
+[[ "$(login "$NEW_PASSWORD" -c "$JAR")" == 200 ]] || bad "the new password does not log in"
+cmp -s "$PB_ROOT/app/etc/admin.hash" "$PB_ROOT/state/admin/admin.hash" \
+  && bad "the changed password did not reach the state copy"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "--- server log ---"; cat "$PB_ROOT/log"

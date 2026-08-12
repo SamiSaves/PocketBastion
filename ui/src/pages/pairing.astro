@@ -1,0 +1,120 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Everything on this page comes from the status file via GET /api/pairing —
+// the ready-line Orca logged at startup, and the paired-device list. Both are
+// up to a minute stale (docs/admin-ui.md).
+---
+
+<Layout title="Pairing">
+  <h2>Pairing</h2>
+  <div class="card pad" id="offer">…</div>
+
+  <h2>Paired devices</h2>
+  <div class="card pad" id="devices">…</div>
+
+  <h2>Actions</h2>
+  <dl class="card">
+    <div class="row">
+      <dt>Mint a fresh pairing offer</dt>
+      <dd><button id="restart">Restart Orca</button></dd>
+    </div>
+    <div class="row">
+      <dt>Forget every paired device</dt>
+      <dd><button id="reset">Reset pairings</button></dd>
+    </div>
+  </dl>
+  <p class="error" id="err"></p>
+</Layout>
+
+<style>
+  .pad {
+    padding: 0.9rem;
+  }
+  .pad :global(p) {
+    margin: 0 0 0.5rem;
+  }
+  .pad :global(p:last-child) {
+    margin-bottom: 0;
+  }
+</style>
+
+<script>
+  const offer = document.getElementById('offer')!;
+  const devices = document.getElementById('devices')!;
+  const err = document.getElementById('err')!;
+
+  const p = (parent: HTMLElement, text: string, href?: string) => {
+    const el = document.createElement('p');
+    if (href) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = text;
+      el.append(a);
+    } else el.textContent = text;
+    parent.append(el);
+  };
+
+  // The ready-line's exact field names are Orca's, not ours, so pick the links
+  // out by shape rather than by key: the web client URL is the http(s) one,
+  // the pairing offer is the orca:// one.
+  function renderOffer(ready: unknown) {
+    offer.replaceChildren();
+    const strings = ready && typeof ready === 'object' ? Object.values(ready).filter((v) => typeof v === 'string') : [];
+    const web = strings.find((s) => /^https?:\/\//.test(s));
+    const pair = strings.find((s) => s.startsWith('orca://'));
+
+    if (web) p(offer, 'Open the web client — full capability; on a fresh box, do this first and create a project', web);
+    if (pair) p(offer, 'Pair this phone with the mobile app', pair);
+    if (!web && !pair)
+      p(
+        offer,
+        ready
+          ? `Orca is not offering pairing: ${JSON.stringify(ready)}`
+          : 'No pairing offer in the status file yet — it refreshes every minute.',
+      );
+  }
+
+  function renderDevices(list: unknown) {
+    devices.replaceChildren();
+    if (!Array.isArray(list) || list.length === 0) return p(devices, 'No paired devices.');
+    for (const d of list) {
+      const name = d?.name ?? d?.label ?? d?.id ?? JSON.stringify(d);
+      const when = [d?.created ?? d?.createdAt, d?.lastSeen ?? d?.last_seen].filter(Boolean).join(' · ');
+      p(devices, when ? `${name} — ${when}` : String(name));
+    }
+  }
+
+  async function act(verb: string, note: string) {
+    err.textContent = '';
+    try {
+      const res = await fetch(`/api/${verb}`, { method: 'POST' });
+      if (res.status === 401) return location.assign('/login.html');
+      if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`);
+      offer.textContent = note;
+    } catch (e) {
+      err.textContent = `${verb} failed (${e instanceof Error ? e.message : e}).`;
+    }
+  }
+
+  document.getElementById('restart')!.addEventListener('click', () => {
+    act('restart', 'Restarting Orca — a fresh offer lands in the status file within a minute or two. Reload then.');
+  });
+  document.getElementById('reset')!.addEventListener('click', () => {
+    if (confirm('Forget every paired device? All of them will have to re-pair.'))
+      act('reset-pairing', 'Pairings reset, Orca restarting — reload in a minute for the fresh offer.');
+  });
+
+  try {
+    const res = await fetch('/api/pairing', { headers: { accept: 'application/json' } });
+    if (res.status === 401) location.assign('/login.html');
+    else if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    else {
+      const { ready, devices: list } = await res.json();
+      renderOffer(ready);
+      renderDevices(list);
+    }
+  } catch (e) {
+    err.textContent = `Could not load pairing state (${e instanceof Error ? e.message : e}). Reload to retry.`;
+  }
+</script>

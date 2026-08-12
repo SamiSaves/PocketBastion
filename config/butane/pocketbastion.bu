@@ -120,6 +120,18 @@ storage:
       mode: 0644
       contents:
         local: files/ui/login.html
+    - path: /etc/pocketbastion/ui/pairing.html
+      mode: 0644
+      contents:
+        local: files/ui/pairing.html
+    - path: /etc/pocketbastion/ui/logs.html
+      mode: 0644
+      contents:
+        local: files/ui/logs.html
+    - path: /etc/pocketbastion/ui/password.html
+      mode: 0644
+      contents:
+        local: files/ui/password.html
     # Read at boot by firewall-setup.sh, so the box firewalls itself with the
     # networks it was actually rendered for.
     - path: /etc/pocketbastion/firewall.env

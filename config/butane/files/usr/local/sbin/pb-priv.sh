@@ -11,10 +11,19 @@
 # here is a security review.
 #
 # ponytail: the socket's group is core, and the Orca container shares uid
-# 1000, so it can reach this too. Bounded by the allowlist — both verbs amount
-# to "restart something already running". Give pbweb its own uid (and a shared
-# group on /mnt/state) if a verb ever does more than that.
+# 1000, so it can reach this too. Bounded by the allowlist — the worst it
+# allows is restart Orca, read its recent logs, or force every device to
+# re-pair. Give pbweb its own uid (and a shared group on /mnt/state) if a verb
+# ever does more than that.
 set -euo pipefail
+
+restart_orca() {
+  # Not `systemctl --user --machine=core@.host`: that needs systemd-container,
+  # which FCOS does not ship. runuser is util-linux.
+  runuser -u core -- \
+    env XDG_RUNTIME_DIR=/run/user/1000 \
+    systemctl --user restart orca.service
+}
 
 read -r verb arg || exit 1
 
@@ -37,15 +46,8 @@ case "$verb" in
 
   restart)
     case "$arg" in
-      git-setup.service)
-        systemctl restart git-setup.service
-        ;;
       orca)
-        # Not `systemctl --user --machine=core@.host`: that needs
-        # systemd-container, which FCOS does not ship. runuser is util-linux.
-        runuser -u core -- \
-          env XDG_RUNTIME_DIR=/run/user/1000 \
-          systemctl --user restart orca.service
+        restart_orca
         ;;
       *)
         echo "ERR unknown unit"
@@ -54,6 +56,31 @@ case "$verb" in
     esac
     echo OK
     ;;
+
+  # Fixed line count, fixed unit set, fixed format: nothing in the journalctl
+  # invocation comes from the request beyond picking an allowlisted unit.
+  logs)
+    case "$arg" in
+      orca)
+        journalctl -q --no-pager -n 200 -o short-iso \
+          _SYSTEMD_USER_UNIT=orca.service
+        ;;
+      *)
+        echo "ERR unknown unit"
+        exit 1
+        ;;
+    esac
+    ;;
+
+  # All-or-nothing by design: there is no per-device revoke on a headless
+  # runtime. Deleting the device list and restarting Orca forces every device
+  # to re-pair against the fresh offer the restart mints.
+  reset-pairing)
+    rm -f /mnt/state/orca/orca-devices.json
+    restart_orca
+    echo OK
+    ;;
+
   *)
     echo "ERR unknown verb"
     exit 1

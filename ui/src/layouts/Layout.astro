@@ -6,6 +6,16 @@ interface Props {
 }
 
 const { title, nav = true } = Astro.props;
+
+// build.format 'file' makes /pairing.html and /pairing the same page; compare
+// on the extensionless form so aria-current survives either spelling.
+const here = Astro.url.pathname.replace(/\.html$/, '');
+const LINKS = [
+  ['/', 'Status'],
+  ['/pairing', 'Pairing'],
+  ['/logs', 'Logs'],
+  ['/password', 'Password'],
+] as const;
 ---
 
 <!doctype html>
@@ -22,9 +32,16 @@ const { title, nav = true } = Astro.props;
         <header>
           <h1>PocketBastion</h1>
           <nav>
-            <a href="/" aria-current={Astro.url.pathname === '/' ? 'page' : undefined}>
-              Status
-            </a>
+            {
+              LINKS.map(([path, label]) => (
+                <a
+                  href={path === '/' ? '/' : `${path}.html`}
+                  aria-current={here === path ? 'page' : undefined}
+                >
+                  {label}
+                </a>
+              ))
+            }
             <form method="post" action="/api/logout">
               <button type="submit">Log out</button>
             </form>
