@@ -32,7 +32,7 @@ laptop                              box
 ──────                              ───
 astro build ──► static HTML/CSS/JS
                        │
-                 inlined in Ignition (≈30 KB budget)
+                 inlined in Ignition
                        │
                        ▼
               pbweb container ── rw ──► /mnt/state/admin
@@ -53,17 +53,16 @@ A second Quadlet container from the same image costs no extra pull and no new
 toolchain. ≈50 MB RSS while running.
 
 **Updating the UI requires a reflash.** That is accepted: the assets are inlined
-in the Ignition config, which is also why the built site has a size budget.
+in the Ignition config.
 
-### The ~30 KB budget
-
-Ignition is delivered on the Pi's boot partition, so there is no hard cap — but
-keeping it small keeps it reviewable. Treat 30 KB of built output as the budget.
-
-In practice that means **no client framework**. For a handful of pages, plain
-HTML with a few `fetch` calls is the right answer anyway. (This is also why the
-pairing screen shows a tappable link, not a QR: a QR encoder is ~10 KB of the
-budget for a scan that pairing-on-the-phone never needs.)
+**No client framework.** Not for size — Ignition lands on the boot partition,
+so there is no real cap (a ~30 KB budget used to live here, a leftover from a
+cloud-init user-data limit that no longer applies) — but because for a handful
+of pages, plain HTML with a few `fetch` calls is simpler to review and to
+carry. Same reasoning gives the pairing screen a tappable link, not a QR: a QR
+encoder is a dependency for a scan that pairing-on-the-phone never needs.
+`make ui` prints the built size; it is informational, for noticing an
+accidental megabyte-scale asset, not a limit.
 
 ## Privilege model
 
