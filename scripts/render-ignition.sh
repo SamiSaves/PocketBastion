@@ -31,8 +31,6 @@ if [[ -z "${SSH_AUTHORIZED_KEY:-}" || "${SSH_AUTHORIZED_KEY}" == *REPLACE_ME* ]]
          SSH_AUTHORIZED_KEY=\"ssh-ed25519 AAAA... you@host\""
 fi
 export SSH_AUTHORIZED_KEY
-export GIT_USER_NAME="${GIT_USER_NAME:-}"
-export GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
 # The shape of each CIDR is deliberately NOT checked here: nft rejects anything
 # malformed and firewall-setup.sh then applies its lockdown ruleset. Only the
@@ -159,7 +157,7 @@ resolve_admin
 # any literal $-text this config grows later (crypt hashes, shell fragments,
 # systemd specifiers) and do it silently.
 # shellcheck disable=SC2016  # literal ${VAR} names for envsubst, not expansions
-SUBST_VARS='${SSH_AUTHORIZED_KEY} ${GIT_USER_NAME} ${GIT_USER_EMAIL}
+SUBST_VARS='${SSH_AUTHORIZED_KEY}
             ${ORCA_PUBLISH} ${ORCA_PORTS} ${ORCA_MEMORY_ARGS}
             ${TRUSTED_CIDRS} ${ZRAM_CONFIG}
             ${ADMIN_PORT} ${ADMIN_PASSWORD_HASH}'

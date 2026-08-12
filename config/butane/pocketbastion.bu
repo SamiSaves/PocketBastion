@@ -168,31 +168,12 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/pairing-address.sh
-    # Regenerates git/ssh config from the deploy keys on the state disk (run at
-    # boot and by repo-add/repo-remove). Source of truth is the keys, not this.
-    - path: /usr/local/sbin/git-setup.sh
-      mode: 0750
-      contents:
-        local: files/usr/local/sbin/git-setup.sh
     # The entire root API available to the admin UI, behind pb-priv.socket.
     # Adding a verb to it is a security review; see docs/admin-ui.md.
     - path: /usr/local/sbin/pb-priv.sh
       mode: 0750
       contents:
         local: files/usr/local/sbin/pb-priv.sh
-    # Commit identity for git inside the container, baked from deploy.env at
-    # render time. git-setup.sh installs it as the container's ~/.gitconfig.
-    # core.sshCommand forces our ssh config: ssh looks in the passwd home (/root),
-    # not $HOME (/data), so /data/.ssh/config would otherwise be ignored.
-    - path: /etc/pocketbastion/gitconfig
-      mode: 0644
-      contents:
-        inline: |
-          [user]
-          name = ${GIT_USER_NAME}
-          email = ${GIT_USER_EMAIL}
-          [core]
-          sshCommand = ssh -F /data/.ssh/config
 systemd:
   units:
     # Not a unit of ours — a dropin so network-online.target is actually
@@ -204,9 +185,6 @@ systemd:
     - name: state-dirs.service
       enabled: true
       contents_local: files/systemd/base/state-dirs.service
-    - name: git-setup.service
-      enabled: true
-      contents_local: files/systemd/base/git-setup.service
     - name: firewall.service
       enabled: true
       contents_local: files/systemd/base/firewall.service

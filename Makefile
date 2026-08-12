@@ -1,18 +1,6 @@
 .PHONY: help ignition validate admin-hash ui ui-dev \
         local-up local-down local-ip local-ssh local-console local-wipe-state \
-        rpi-flash \
-        repo-add repo-list repo-remove
-
-# ?= so `DEPLOY_ENV=deploy.vm.env make repo-add` reads SERVER_HOST from the file
-# it renders from. With := the env var lost and the target hit the wrong box.
-DEPLOY_ENV   ?= deploy.env
-
-# Where the management targets connect. An environment variable wins; otherwise
-# deploy.env. Each script errors if it ends up empty.
-# abspath because $(shell) runs under /bin/sh, whose `.` does not search the cwd
-# for a slashless path: a relative DEPLOY_ENV would silently source nothing.
-SERVER_HOST ?= $(shell . "$(abspath $(DEPLOY_ENV))" 2>/dev/null; printf '%s' "$$SERVER_HOST")
-export SERVER_HOST
+        rpi-flash
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -32,7 +20,7 @@ admin-hash: ## Print an ADMIN_PASSWORD_HASH line for deploy.env (prompts)
 
 ui: ## Build the admin UI to ui/dist
 	@cd ui && npm install --silent --no-audit --no-fund && npm run build
-	@du -sb ui/dist | awk '{printf "  ui/dist: %d bytes (budget 30720)\n", $$1}'
+	@du -sh ui/dist | awk '{printf "  ui/dist: %s\n", $$1}'
 
 ui-dev: ## Serve the admin UI with live reload (no box, no API)
 	@cd ui && npm install --silent --no-audit --no-fund && npm run dev
@@ -64,9 +52,8 @@ local-wipe-state: ## Permanently delete the mock's disk image (DATA LOSS — pro
 local-ip: ## Print the mock VM's address on the libvirt network
 	@./scripts/local/ip.sh
 
-# The address is DHCP-assigned, so it is looked up per call — deliberately NOT
-# SERVER_HOST, which points at the real box. Host keys are thrown away, unlike
-# the repo-* scripts: the mock is reflashed constantly and its key changes.
+# The address is DHCP-assigned, so it is looked up per call. Host keys are
+# thrown away: the mock is reflashed constantly and its key changes.
 local-ssh: ## SSH into the mock VM
 	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 	  core@$$(./scripts/local/ip.sh)
@@ -74,14 +61,3 @@ local-ssh: ## SSH into the mock VM
 local-console: ## Open serial console for the mock VM
 	@echo "Exit with: Ctrl+]"
 	@virsh --connect qemu:///system console pocketbastion-local
-
-# ── GitHub repositories ──────────────────────────────────────────────────────
-
-repo-add: ## Grant the box access to a repo  (REPO=git@host:owner/name.git)
-	@scripts/repo-add.sh "$(REPO)"
-
-repo-list: ## List repos the box has git access to
-	@scripts/repo-list.sh
-
-repo-remove: ## Revoke the box's access to a repo  (NAME=host-owner-name [PURGE=1])
-	@scripts/repo-remove.sh "$(NAME)" $(if $(filter 1,$(PURGE)),--purge,)

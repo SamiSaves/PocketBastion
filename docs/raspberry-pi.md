@@ -33,7 +33,6 @@ Fill in `deploy.env` (see the [README](../README.md)); the Pi-specific values ar
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"
 
 TRUSTED_CIDRS="192.168.1.0/24"      # your LAN — nothing wider
-SERVER_HOST=pocketbastion-rpi.lan   # or the DHCP address
 ```
 
 `TRUSTED_CIDRS` is the entire access-control boundary in front of an AI agent
@@ -91,17 +90,17 @@ it does lives on `/mnt/state` and survives reflashes.
 
 ## 5. Day-to-day
 
-```bash
-make repo-add REPO=git@github.com:owner/name.git
-```
+Everything routine happens off the laptop: the admin UI for status, pairing,
+logs and the admin password; the Orca terminal for git and agent auth. Adding a
+repo is a github.com operation — grant the PAT access, tell the agent to clone
+it (see the README's **Git access**).
 
-A reflash regenerates the box's host key, so the `repo-*` targets then refuse to
-connect with `REMOTE HOST IDENTIFICATION HAS CHANGED`. Clear the old key with
-`ssh-keygen -R <the SERVER_HOST from deploy.env>` rather than turning host key
-checking off.
+A reflash regenerates the box's host key, so SSH then refuses to connect with
+`REMOTE HOST IDENTIFICATION HAS CHANGED`. Clear the old key with
+`ssh-keygen -R <the box's address>` rather than turning host key checking off.
 
-To change anything in `deploy.env`, re-flash. Repos, sessions, caches, secrets
-and deploy keys are all on `/mnt/state` and come back untouched.
+To change anything in `deploy.env`, re-flash. Repos, sessions, caches and
+secrets are all on `/mnt/state` and come back untouched.
 
 ## 6. Two things that must not change
 

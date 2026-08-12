@@ -63,11 +63,11 @@ below 24 GB are refused.
 ## Connect
 
 The mock's address is DHCP-assigned by libvirt, so `make local-ssh` looks it up
-each time rather than reading `SERVER_HOST` (which points at the real box):
+each time:
 
 ```bash
 make local-ssh
-make local-ip      # the address itself, e.g. for `make repo-add`
+make local-ip      # the address itself, e.g. for the admin UI
 ```
 
 If SSH does not answer, `make local-console` shows the boot without any network

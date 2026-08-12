@@ -34,13 +34,12 @@ remains the price of entry.
 cp deploy.env.example deploy.env
 ```
 
-Fill in your SSH **public** key (private keys never enter this repo), who may
-reach the box, and where `make` should connect:
+Fill in your SSH **public** key (private keys never enter this repo) and who may
+reach the box:
 
 ```bash
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAA... you@host"          # log in to the server
 TRUSTED_CIDRS="192.168.1.0/24"                             # who may reach it
-SERVER_HOST=pocketbastion-rpi.lan                          # where `make` targets connect
 ```
 
 No key? `ssh-keygen -t ed25519 -f ~/.ssh/pocketbastion -C pocketbastion`, then
@@ -55,8 +54,8 @@ Each guide covers its prerequisites, creating the server, and connecting to it:
 
 ### 3. Post-install setup
 
-SSH in with `ssh core@<the SERVER_HOST from deploy.env>` (`make local-ssh` does
-this for the mock VM). Everything below is on `/mnt/state` and survives a
+SSH in with `ssh core@<the box's address>` (`make local-ssh` does this for the
+mock VM). Everything below is on `/mnt/state` and survives a
 reflash.
 
 **Pair a client.** The server prints an offer every time it starts:
@@ -114,36 +113,28 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ### Git access
 
-Each repo gets its own deploy key, generated on the box and never leaving the
-state disk. Works with any SSH git host (github.com, gitlab.com, self-hosted).
-Access is per-repo and explicit — adding a repo is a deliberate step:
+The box holds a single **fine-grained GitHub PAT**
+([ADR 0001](docs/adr/0001-fine-grained-pat-replaces-deploy-keys.md)): repos
+granted explicitly on github.com, Contents + Issues + Pull requests read/write.
+Enter it once in Orca's terminal (web client → terminal); it lands on the state
+disk and survives reflashes:
 
 ```bash
-make repo-add REPO=git@github.com:owner/name.git
-make repo-list
-make repo-remove NAME=github-com-owner-name              # keeps the checkout
-make repo-remove NAME=github-com-owner-name PURGE=1      # also deletes it
+gh auth login          # paste the PAT
+gh auth setup-git      # git over HTTPS uses gh as credential helper
+git config --global user.name  "You"
+git config --global user.email "you@example.com"
 ```
 
-Orca keeps its own project list, so tell it the checkout exists — the path is
-the one inside the container:
-
-```bash
-orca repo add --environment pocketbastion --path /repos/github-com-owner-name
-```
-
-`repo-add` pauses while you register the printed public key on the repo (as a
-deploy key), then verifies by cloning. github.com's host key is pinned in the
-script; for any other forge it prints that forge's SSH fingerprint for you to
-check against their published one, once. The container gets the per-repo deploy
-key directly. Every configured key is in the container, so a compromised agent
-has push access to every repo you have added — each `repo-add` widens that.
+Adding a repo later is not a box operation at all: grant the PAT access on
+github.com, then tell the agent to clone it under `/repos`. Revocation happens
+on github.com too — revoke or narrow the PAT.
 
 ## Managing the server
 
-`SERVER_HOST` in `deploy.env` decides where these connect; override it for a
-single command with `SERVER_HOST=192.168.1.42 make repo-list`. `make help` lists
-every target.
+The admin UI (`http://<the box's address>:8080`, `docs/admin-ui.md`) covers
+status, pairing, logs and the admin password without SSH. `make help` lists the
+laptop-side targets.
 
 ## How the config is built
 
@@ -181,12 +172,13 @@ that would otherwise cost you the data on a real card.
   box opens no outbound relay or tunnel to make itself reachable.
 - The firewall filters inbound only. The container's outbound access is
   unrestricted: an agent inside it can reach your LAN and the internet.
-- Git credentials use narrowly scoped per-repo deploy keys, not personal access
-  tokens.
+- The git credential is a single fine-grained PAT, scoped on github.com to
+  explicitly granted repos
+  ([ADR 0001](docs/adr/0001-fine-grained-pat-replaces-deploy-keys.md)).
 
 ## TODO
 
-- Improve security stance on the agent container, see if we can avoid it having so many secrets, such as git ssh keys
+- Improve security stance on the agent container, see if we can avoid it holding so many secrets (the GitHub PAT, agent credentials)
 - See if we could host vscode server for better development experience
 - Consider DNS for the Pi
 - Consider custom web UI for managing the server

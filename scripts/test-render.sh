@@ -16,8 +16,6 @@ export IGNITION_OUT_DIR="$OUT"
 # render-ignition.sh reads DEPLOY_ENV, so every case is just a throwaway file.
 cat > "$OUT/base.env" <<EOF
 SSH_AUTHORIZED_KEY="ssh-ed25519 AAAAtest render-validation-placeholder"
-GIT_USER_NAME="render validation"
-GIT_USER_EMAIL=render@validation
 ORCA_EXTRA_PORTS="5173-5180"
 ADMIN_PORT=8080
 ADMIN_PASSWORD_HASH=scrypt:cmVuZGVyLXZhbGlkYXRpb24=:cmVuZGVyLXZhbGlkYXRpb24tcGxhY2Vob2xkZXI=
