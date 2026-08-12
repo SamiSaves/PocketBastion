@@ -30,3 +30,4 @@ ui/.astro/
 *.swp
 *.swo
 *~
+.claude/
