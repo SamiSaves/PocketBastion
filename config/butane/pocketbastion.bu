@@ -174,6 +174,12 @@ storage:
       mode: 0750
       contents:
         local: files/usr/local/sbin/pb-priv.sh
+    # Writes the status file the admin UI reads (docs/admin-ui.md); run by
+    # pb-status.timer each minute and at boot.
+    - path: /usr/local/sbin/pb-status.sh
+      mode: 0750
+      contents:
+        local: files/usr/local/sbin/pb-status.sh
 systemd:
   units:
     # Not a unit of ours — a dropin so network-online.target is actually
@@ -198,3 +204,9 @@ systemd:
       contents_local: files/systemd/base/pb-priv.socket
     - name: pb-priv@.service
       contents_local: files/systemd/base/pb-priv@.service
+    # Only the timer is enabled; the service is what it fires.
+    - name: pb-status.timer
+      enabled: true
+      contents_local: files/systemd/base/pb-status.timer
+    - name: pb-status.service
+      contents_local: files/systemd/base/pb-status.service

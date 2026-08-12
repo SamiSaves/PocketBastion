@@ -26,7 +26,10 @@ EnvironmentFile=/run/pocketbastion/pairing.env
 # `--no-pairing` in a dropin stops the box minting pairing offers once your
 # devices are enrolled. Not the default: an unpaired box would then need an SSH
 # session before it could be reached at all.
-Exec=serve --port 6768
+# --json so the ready-line lands in the journal as one parseable object for
+# pb-status.sh; --mobile-pairing so the minted offer is mobile-scope — the web
+# client (runtime scope) pairs through its own URL, not the offer.
+Exec=serve --port 6768 --json --mobile-pairing
 
 [Service]
 Restart=always

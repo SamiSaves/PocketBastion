@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the admin UI status file each minute
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=1min
+# Default accuracy is a whole minute, which would stretch the refresh to two.
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

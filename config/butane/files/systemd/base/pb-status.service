@@ -1,0 +1,8 @@
+[Unit]
+Description=Write the admin UI status file
+After=var-mnt-state.mount
+Wants=var-mnt-state.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pb-status.sh

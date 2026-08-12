@@ -37,7 +37,7 @@ if check systemd-analyze; then
   # outright, since a fragment is not a unit. Dropins are covered by the render
   # (Butane --strict) and by the mock VM boot instead.
   mapfile -t units < <(find "$UNIT_DIR" -type f \
-    \( -name '*.service' -o -name '*.mount' -o -name '*.socket' \))
+    \( -name '*.service' -o -name '*.mount' -o -name '*.socket' -o -name '*.timer' \))
   # The exit code carries no signal: it is 1 even on a clean tree, because the
   # ExecStart binaries live on the server and var-mnt-state.mount is generated
   # by Butane. A real typo is only a WARNING, so the text is all there is.

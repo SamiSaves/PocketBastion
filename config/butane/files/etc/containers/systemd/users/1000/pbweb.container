@@ -34,11 +34,12 @@ Exec=/app/etc/pbweb.mjs
 
 # Read-only: the UI, the server, the rendered password seed, firewall.env.
 Volume=/etc/pocketbastion:/app/etc:ro
-# The password it actually checks, and the repo keys it manages. No :z — the
-# relabel is moot with label=disable, and these are directories git-setup.sh
-# and Orca also touch, so leave their labels alone.
+# The password it actually checks. No :z — the relabel is moot with
+# label=disable, and leaving the label alone keeps the directory ordinary.
 Volume=/mnt/state/admin:/state/admin
-Volume=/mnt/state/secrets:/state/secrets
+# The status file (agent-status.json, root-written) and pairing.env. Everything
+# pbweb *reads* about Orca's world arrives here; it never mounts Orca's /data.
+Volume=/run/pocketbastion:/run/pocketbastion:ro
 # The only channel to anything privileged. Root on the far side; the verb
 # allowlist is in /usr/local/sbin/pb-priv.sh.
 Volume=/run/pb-priv.sock:/run/pb-priv.sock

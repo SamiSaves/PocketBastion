@@ -8,8 +8,13 @@ const ROWS = [
   ['networks', 'Trusted networks'],
   ['ports', 'Open ports'],
   ['adminPassword', 'Admin password'],
+  ['github', 'GitHub'],
+  ['agents', 'Claude / Codex'],
+  ['gitIdentity', 'git identity'],
   ['repos', 'Repos'],
   ['memory', 'Memory / zram'],
+  ['load', 'Load'],
+  ['temperature', 'Temperature'],
   ['containers', 'Containers'],
   ['disk', 'Disk on /mnt/state'],
 ] as const;
@@ -50,7 +55,12 @@ const ROWS = [
 
     for (const el of document.querySelectorAll<HTMLElement>('[data-key]')) {
       const row = rows[el.dataset.key!];
-      if (!row) continue;
+      // A key the server did not send is a row this box does not have — the
+      // temperature row on the mock VM. Drop it rather than leave a stuck '…'.
+      if (!row) {
+        el.remove();
+        continue;
+      }
       const state = row.state ?? 'ok';
       el.dataset.state = state;
       el.querySelector('.sr')!.textContent = PREFIX[state];

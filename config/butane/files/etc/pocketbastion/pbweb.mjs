@@ -7,9 +7,10 @@
 // Node builtins only. There is no package.json on the box and no npm install
 // at boot — the runtime is whatever the Orca image already has.
 import { createServer } from 'node:http';
-import { readFile, writeFile, readdir, statfs } from 'node:fs/promises';
+import { readFile, writeFile, statfs } from 'node:fs/promises';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { connect } from 'node:net';
+import { loadavg, cpus } from 'node:os';
 
 const PORT = Number(process.env.ADMIN_PORT || 8080);
 
@@ -22,7 +23,7 @@ const UI = `${ETC}/ui`;
 const SEED_HASH = `${ETC}/admin.hash`;
 const FIREWALL_ENV = `${ETC}/firewall.env`;
 const HASH_FILE = `${ROOT}/state/admin/admin.hash`;
-const GIT_SECRETS = `${ROOT}/state/secrets/git`;
+const STATUS_FILE = `${ROOT}/run/pocketbastion/agent-status.json`;
 const PRIV_SOCK = `${ROOT}/run/pb-priv.sock`;
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
@@ -130,7 +131,17 @@ function rateLimited() {
 
 // ── status ───────────────────────────────────────────────────────────────────
 
-const fmtBytes = (n) => `${(n / 1024 ** 3).toFixed(1)} GB`;
+const fmtBytes = (n) =>
+  n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1024 ** 2))} MB`;
+
+/** The root-written status file (docs/admin-ui.md); null until the timer runs. */
+async function agentStatus() {
+  try {
+    return JSON.parse(await read(STATUS_FILE));
+  } catch {
+    return null;
+  }
+}
 
 async function status() {
   const fw = parseEnv(await readOr(FIREWALL_ENV));
@@ -143,14 +154,32 @@ async function status() {
     ? { value: 'still the one from deploy.env', state: 'warn' }
     : { value: 'changed on the box', state: 'ok' };
 
-  const metas = await readdir(GIT_SECRETS).then((f) => f.filter((n) => n.endsWith('.meta'))).catch(() => []);
-  const parsed = await Promise.all(metas.map(async (n) => parseEnv(await readOr(`${GIT_SECRETS}/${n}`))));
-  const unverified = parsed.filter((m) => m.verified !== 'true').length;
-  rows.repos = parsed.length === 0
-    ? { value: 'none configured' }
-    : unverified
-      ? { value: `${parsed.length}, ${unverified} unverified`, state: 'warn' }
-      : { value: `${parsed.length}, all verified`, state: 'ok' };
+  // The amber rows below all point at the same place: the one-time setup in
+  // the Orca terminal (docs/admin-ui.md). The status file is up to a minute
+  // stale, so "just done" shows for a moment as still missing.
+  const ag = await agentStatus();
+  const stale = { value: 'unknown — no status file yet', state: 'warn' };
+  rows.github = !ag
+    ? stale
+    : ag.github
+      ? { value: `authed as ${ag.github}`, state: 'ok' }
+      : { value: 'not authed — gh auth login in the Orca terminal', state: 'warn' };
+  const agents = [ag?.claude && 'Claude', ag?.codex && 'Codex'].filter(Boolean);
+  rows.agents = !ag
+    ? stale
+    : agents.length
+      ? { value: `${agents.join(' + ')} authed`, state: 'ok' }
+      : { value: 'neither authed — run claude or codex in the Orca terminal', state: 'warn' };
+  rows.gitIdentity = !ag
+    ? stale
+    : ag.gitEmail
+      ? { value: ag.gitEmail, state: 'ok' }
+      : { value: 'unset — git config in the Orca terminal', state: 'warn' };
+  rows.repos = !ag
+    ? stale
+    : ag.repos?.length
+      ? { value: ag.repos.map((r) => `${r.name} (${fmtBytes(r.kb * 1024)})`).join(', ') }
+      : { value: 'none — clone from the Orca terminal' };
 
   const mem = parseEnv((await readOr('/proc/meminfo')).replace(/:\s+/g, '='));
   const total = Number.parseInt(mem.MemTotal, 10) * 1024;
@@ -161,12 +190,27 @@ async function status() {
     state: avail / total < 0.1 ? 'bad' : avail / total < 0.2 ? 'warn' : 'ok',
   };
 
+  const load = loadavg()[0];
+  const ncpu = cpus().length;
+  rows.load = { value: `${load.toFixed(2)} (${ncpu} cpus)`, state: load > ncpu ? 'warn' : 'ok' };
+
+  // The Pi throttles around 80 °C. The zone file is absent on the mock VM, and
+  // the row is simply omitted with it.
+  const milli = Number.parseInt(await readOr('/sys/class/thermal/thermal_zone0/temp'), 10);
+  if (Number.isFinite(milli)) {
+    const temp = milli / 1000;
+    rows.temperature = {
+      value: `${temp.toFixed(0)} °C`,
+      state: temp >= 80 ? 'bad' : temp >= 70 ? 'warn' : 'ok',
+    };
+  }
+
   const active = await priv('is-active orca').catch((e) => `unreachable (${e.message})`);
   rows.containers = active === 'active'
     ? { value: 'Orca running', state: 'ok' }
     : { value: `Orca ${active}`, state: 'bad' };
 
-  const fs = await statfs(`${ROOT}/state`).catch(() => null);
+  const fs = await statfs(`${ROOT}/state/admin`).catch(() => null);
   if (fs) {
     const free = fs.bavail * fs.bsize;
     const size = fs.blocks * fs.bsize;

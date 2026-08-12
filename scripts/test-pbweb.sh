@@ -21,7 +21,7 @@ trap 'kill "${PID:-}" 2>/dev/null || true; rm -rf "$PB_ROOT"' EXIT
 
 # ── fixture ──────────────────────────────────────────────────────────────────
 PASSWORD='correct horse battery staple'
-mkdir -p "$PB_ROOT/app/etc/ui" "$PB_ROOT/state/admin" "$PB_ROOT/state/secrets/git" "$PB_ROOT/run"
+mkdir -p "$PB_ROOT/app/etc/ui" "$PB_ROOT/state/admin" "$PB_ROOT/run/pocketbastion"
 cp "$UI_DIST"/*.html "$PB_ROOT/app/etc/ui/"
 
 # shellcheck disable=SC2016  # single quotes on purpose: this is JS, not shell
@@ -38,8 +38,15 @@ TRUSTED_CIDRS="192.168.122.0/24"
 ORCA_PORTS="6768 5173-5180"
 ADMIN_PORT="8080"
 EOF
-printf 'ANTHROPIC_API_KEY=fixture\n' > "$PB_ROOT/state/secrets/orca.env"
-printf 'name=github-com-me-repo\nverified=false\n' > "$PB_ROOT/state/secrets/git/a.meta"
+# A status file as pb-status.sh would write it: GitHub unauthenticated (the
+# warn the assertions check), one agent authed, a ready-line, one repo.
+cat > "$PB_ROOT/run/pocketbastion/agent-status.json" <<'EOF'
+{"github": null, "gitEmail": "you@example.com", "claude": true, "codex": false,
+ "ready": {"type": "orca_server_ready", "webUrl": "http://192.0.2.1:6768",
+           "pairing": "orca://pair?offer=fixture"},
+ "devices": [{"name": "fixture phone", "created": "2026-08-01"}],
+ "repos": [{"name": "demo", "kb": 2048}]}
+EOF
 
 # ── run ──────────────────────────────────────────────────────────────────────
 PB_ROOT="$PB_ROOT" ADMIN_PORT="$PORT" node "$SERVER" >"$PB_ROOT/log" 2>&1 &
@@ -89,15 +96,19 @@ JAR="$PB_ROOT/jar"
 grep -q 'pb' "$JAR" || bad "no session cookie was set"
 
 STATUS="$(curl -s -b "$JAR" "http://127.0.0.1:$PORT/api/status")"
-for key in networks ports adminPassword repos memory containers disk; do
+# temperature is deliberately absent: the row exists only where the thermal
+# zone does, and this laptop's reading is not the fixture's.
+for key in networks ports adminPassword github agents gitIdentity repos memory load containers disk; do
   node -e 'process.exit(JSON.parse(process.argv[1])[process.argv[2]]?.value ? 0 : 1)' \
     "$STATUS" "$key" || bad "status row '$key' is missing or empty (index.astro renders it)"
 done
-# The seeded password and an unverified repo are the two warnings the fixture
-# is built to produce; if they read 'ok' the flags are not wired to anything.
+# The seeded password and the unauthenticated GitHub credential are the two
+# warnings the fixture is built to produce; if they read 'ok' the flags are not
+# wired to anything. The repo row must carry the du result from the status file.
 node -e 'const s=JSON.parse(process.argv[1]);
   if (s.adminPassword.state !== "warn") { console.error("adminPassword not flagged"); process.exit(1) }
-  if (s.repos.state !== "warn") { console.error("repos not flagged"); process.exit(1) }' \
+  if (s.github.state !== "warn") { console.error("github not flagged"); process.exit(1) }
+  if (!s.repos.value.includes("demo")) { console.error("repos ignores the status file"); process.exit(1) }' \
   "$STATUS" || bad "status flags are not derived from the fixture state"
 
 [[ "$(code -b "$JAR" "http://127.0.0.1:$PORT/")" == 200 ]] || bad "a logged-in / did not serve the page"

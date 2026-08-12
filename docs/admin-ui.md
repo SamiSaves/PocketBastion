@@ -35,9 +35,9 @@ astro build ──► static HTML/CSS/JS
                  inlined in Ignition (≈30 KB budget)
                        │
                        ▼
-              pbweb container ── ro ──► /mnt/state/{admin,repos},
-              (node:24-slim, uid 1000)  /run/pocketbastion/agent-status.json,
-                       │                orca-devices.json
+              pbweb container ── rw ──► /mnt/state/admin
+              (node:24-slim, uid 1000) ── ro ──► /run/pocketbastion
+                       │                         (status file, pairing.env)
                        │ /run/pb-priv.sock  (root:pbweb 0660)
                        ▼
               pb-priv@.service ── one verb per connection, exits
@@ -75,9 +75,7 @@ Everything it needs is a read-only mount, one writable mount, or the socket:
 | needs | how |
 |---|---|
 | admin password hash | mount `/mnt/state/admin` (rw — password change) |
-| what checkouts exist | mount `/mnt/state/repos` (ro) |
-| auth + pairing status | mount `/run/pocketbastion` (ro) — the status file |
-| paired devices | mount Orca's `orca-devices.json` (ro, single file) |
+| auth + pairing status, checkouts, paired devices | mount `/run/pocketbastion` (ro) — the status file |
 | restarts, logs, reset | the socket |
 
 pbweb no longer mounts `/mnt/state/secrets`: with deploy keys gone it has no
@@ -124,6 +122,13 @@ facts — never a token:
 - git identity: `user.email` set in `/data/.gitconfig` or not
 - the latest `orca_server_ready` line from Orca's journal — pairing offer,
   web client URL, or the failure reason
+- the paired-device list, relayed from `orca-devices.json`. Not the planned ro
+  single-file mount: `reset-pairing` deletes and Orca recreates the file, and a
+  single-file bind mount keeps pointing at the deleted inode — pbweb would show
+  the pre-reset list forever.
+- checkouts under `/mnt/state/repos`, name + size. `du` belongs in a
+  once-a-minute root timer, not in a page load walking `node_modules` on the
+  microSD — so no repos mount either.
 
 Up to a minute stale, which is fine for auth rows; after "restart Orca" the
 pairing screen says so and refreshes. This is the file-over-socket pattern the
@@ -176,7 +181,7 @@ form; this is the part that makes invisible config visible.
 | GitHub | status file | amber if not authed → points at the setup guide |
 | Claude / Codex | status file | amber if neither authed |
 | git identity | status file | amber if unset |
-| Repos | `/mnt/state/repos` (ro) | name + size, informational |
+| Repos | status file | name + size, informational |
 | Memory / zram | `/proc/meminfo`, `/sys/block/zram0` | amber when tight |
 | Load | `/proc/loadavg` | amber when high |
 | Temperature | `/sys/class/thermal` | amber when hot; row absent on the VM |
